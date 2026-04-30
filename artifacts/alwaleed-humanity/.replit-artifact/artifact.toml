@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "AlWaleed for Humanity"
+version = "1.0.0"
+id = "artifacts/alwaleed-humanity"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 21937
+
+[services.development]
+run = "pnpm --filter @workspace/alwaleed-humanity run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/alwaleed-humanity", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/alwaleed-humanity", "run", "serve" ]
+
+[services.env]
+PORT = "21937"
+BASE_PATH = "/"

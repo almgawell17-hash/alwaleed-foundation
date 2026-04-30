@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "djAQAdVeMjc8EUf1FzEWe"
+uri = "file://artifacts/alwaleed-humanity/assets/images/icon.png"
+type = "image"
+title = "humanitarian foundation icon"

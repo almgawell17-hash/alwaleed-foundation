@@ -25,3 +25,14 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+- **alwaleed-humanity** (`/`) — Expo mobile app for "AlWaleed for Humanity / مؤسسة الوليد للإنسانية".
+  Arabic-first dark theme (gold + teal palette), 4 tabs (Home, Campaigns, Chat, About),
+  offline support via AsyncStorage, simulated real-time support chat, tablet-ready.
+  Font: Tajawal (Arabic + Latin), aliased to the `Inter_*` keys throughout the codebase.
+  Local persistence keys: `@alwaleed/campaigns/v1`, `@alwaleed/news/v1`,
+  `@alwaleed/saved/v1`, `@alwaleed/chat/v1`.
+- **api-server** (`/api`) — shared Express API (currently only `/api/healthz`).
+- **mockup-sandbox** (`/__mockup`) — design canvas sandbox.
