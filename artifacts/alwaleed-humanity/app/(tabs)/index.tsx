@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -136,6 +137,16 @@ export default function HomeScreen() {
             { paddingTop: headerTopPad + 16 },
           ]}
         >
+          {/* Official brand banner */}
+          <View style={styles.adBanner}>
+            <Image
+              source={require("@/assets/images/ad.png")}
+              style={styles.adImage}
+              resizeMode="contain"
+              accessibilityLabel="مؤسسة الوليد للإنسانية"
+            />
+          </View>
+
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <Pressable
@@ -546,6 +557,23 @@ const styles = StyleSheet.create({
   headerGradient: {
     paddingHorizontal: 20,
     paddingBottom: 24,
+  },
+  adBanner: {
+    alignSelf: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    marginBottom: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  adImage: {
+    width: 240,
+    aspectRatio: 560 / 346,
   },
   headerRow: {
     flexDirection: "row-reverse",
