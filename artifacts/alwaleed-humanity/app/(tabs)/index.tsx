@@ -1,11 +1,11 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CampaignCard } from "@/components/CampaignCard";
 import { Card } from "@/components/Card";
 import { Logo } from "@/components/Logo";
-import { QuickAction } from "@/components/QuickAction";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StatTile } from "@/components/StatTile";
 import { seedStats } from "@/data/seed";
@@ -27,24 +26,97 @@ import { useColors } from "@/hooks/useColors";
 
 const isWeb = Platform.OS === "web";
 
+type MainAction = {
+  key: string;
+  label: string;
+  sub: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  route: "/donate" | "/news" | "/contact";
+  color: string;
+};
+
+type MenuItem = {
+  key: string;
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  route: "/settings" | "/language" | "/(tabs)/about";
+};
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { campaigns, news, loaded } = useCampaigns();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const featured = useMemo(() => campaigns.slice(0, 4), [campaigns]);
   const latestNews = useMemo(() => news.slice(0, 3), [news]);
 
   const headerTopPad = isWeb ? 67 : insets.top;
 
-  const showSoon = (label: string) => {
+  const haptic = () => {
     if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
-        () => {},
-      );
+      Haptics.selectionAsync().catch(() => {});
     }
-    Alert.alert(label, "هذه الميزة ستكون متاحة في التحديث القادم.");
+  };
+
+  const mainActions: MainAction[] = [
+    {
+      key: "donate",
+      label: "تبرع الآن",
+      sub: "ساهم في إنقاذ الأرواح",
+      icon: "hand-heart",
+      route: "/donate",
+      color: colors.primary,
+    },
+    {
+      key: "news",
+      label: "آخر الأخبار",
+      sub: "تابع جديد المؤسسة",
+      icon: "newspaper-variant-outline",
+      route: "/news",
+      color: colors.accent,
+    },
+    {
+      key: "contact",
+      label: "تواصل معنا",
+      sub: "نحن هنا لخدمتك",
+      icon: "phone-in-talk",
+      route: "/contact",
+      color: "#7C5CFF",
+    },
+  ];
+
+  const menuItems: MenuItem[] = [
+    {
+      key: "settings",
+      label: "إعدادات التطبيق",
+      icon: "cog-outline",
+      route: "/settings",
+    },
+    {
+      key: "language",
+      label: "تغيير اللغة",
+      icon: "translate",
+      route: "/language",
+    },
+    {
+      key: "about",
+      label: "عن المؤسسة",
+      icon: "information-outline",
+      route: "/(tabs)/about",
+    },
+  ];
+
+  const handleMenuPress = (route: MenuItem["route"]) => {
+    haptic();
+    setMenuOpen(false);
+    router.push(route);
+  };
+
+  const handleActionPress = (route: MainAction["route"]) => {
+    haptic();
+    router.push(route);
   };
 
   return (
@@ -65,6 +137,31 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <Pressable
+                onPress={() => {
+                  haptic();
+                  setMenuOpen(true);
+                }}
+                hitSlop={12}
+                style={({ pressed }) => [
+                  styles.menuBtn,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+                accessibilityLabel="القائمة"
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons
+                  name="dots-vertical"
+                  size={22}
+                  color={colors.foreground}
+                />
+              </Pressable>
+            </View>
             <View style={styles.headerTitleWrap}>
               <Text
                 style={[
@@ -185,28 +282,65 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* Quick actions */}
-          <View style={styles.quickRow}>
-            <QuickAction
-              iconName="heart"
-              label="تبرع"
-              onPress={() => router.push("/campaigns")}
-            />
-            <QuickAction
-              iconName="users"
-              label="تطوع"
-              onPress={() => showSoon("التطوع")}
-            />
-            <QuickAction
-              iconName="share-2"
-              label="شارك"
-              onPress={() => showSoon("المشاركة")}
-            />
-            <QuickAction
-              iconName="message-circle"
-              label="تواصل"
-              onPress={() => router.push("/chat")}
-            />
+          {/* Main action buttons */}
+          <View style={styles.mainActions}>
+            {mainActions.map((a) => (
+              <Pressable
+                key={a.key}
+                onPress={() => handleActionPress(a.route)}
+                style={({ pressed }) => [
+                  styles.mainActionBtn,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: a.color + "55",
+                    borderRadius: colors.radius,
+                    opacity: pressed ? 0.85 : 1,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+              >
+                <View
+                  style={[
+                    styles.mainActionIcon,
+                    { backgroundColor: a.color + "1F" },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={a.icon}
+                    size={26}
+                    color={a.color}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.mainActionLabel,
+                    {
+                      color: colors.foreground,
+                      fontFamily: "Inter_700Bold",
+                      writingDirection: "rtl",
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {a.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.mainActionSub,
+                    {
+                      color: colors.mutedForeground,
+                      fontFamily: "Inter_400Regular",
+                      writingDirection: "rtl",
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {a.sub}
+                </Text>
+              </Pressable>
+            ))}
           </View>
 
           {/* Featured campaigns */}
@@ -323,6 +457,81 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* 3-dot menu modal */}
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setMenuOpen(false)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.menuSheet,
+              {
+                top: headerTopPad + 56,
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.menuTitle,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_500Medium",
+                  writingDirection: "rtl",
+                },
+              ]}
+            >
+              القائمة
+            </Text>
+            {menuItems.map((item, idx) => (
+              <Pressable
+                key={item.key}
+                onPress={() => handleMenuPress(item.route)}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  {
+                    borderTopColor: colors.border,
+                    borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                    backgroundColor: pressed
+                      ? colors.secondary
+                      : "transparent",
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+              >
+                <Text
+                  style={[
+                    styles.menuLabel,
+                    {
+                      color: colors.foreground,
+                      fontFamily: "Inter_500Medium",
+                      writingDirection: "rtl",
+                    },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                <MaterialCommunityIcons
+                  name={item.icon}
+                  size={22}
+                  color={colors.primary}
+                />
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -341,8 +550,20 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 24,
+  },
+  headerLeft: {
+    width: 40,
+    alignItems: "flex-start",
+  },
+  menuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitleWrap: {
     flex: 1,
@@ -400,10 +621,73 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     gap: 10,
   },
-  quickRow: {
+  mainActions: {
     flexDirection: "row-reverse",
+    gap: 10,
+  },
+  mainActionBtn: {
+    flex: 1,
+    borderWidth: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    gap: 8,
+    minHeight: 130,
+  },
+  mainActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mainActionLabel: {
+    fontSize: 13,
+    textAlign: "center",
+  },
+  mainActionSub: {
+    fontSize: 10,
+    textAlign: "center",
+    opacity: 0.85,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  menuSheet: {
+    position: "absolute",
+    left: 16,
+    minWidth: 220,
+    borderWidth: 1,
+    paddingVertical: 6,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  menuTitle: {
+    fontSize: 11,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+    textAlign: "right",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  menuItem: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     gap: 12,
-    paddingVertical: 4,
+  },
+  menuLabel: {
+    fontSize: 15,
+    flex: 1,
+    textAlign: "right",
   },
   section: {
     gap: 4,
