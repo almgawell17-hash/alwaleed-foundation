@@ -18,7 +18,7 @@ import { Card } from "@/components/Card";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { useColors } from "@/hooks/useColors";
 
-const PRESETS = [50, 100, 250, 500, 1000];
+const PRESETS = [100, 250, 500, 1000, 10000];
 
 const PAYMENT_METHODS = [
   { key: "apple", labelAr: "Apple Pay", icon: "apple" as const },

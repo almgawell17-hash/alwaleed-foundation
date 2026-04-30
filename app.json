@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "cd7b92c0-85c9-4524-b188-b3570545dec0"
+      }
+    },
+    "android": {
+      "package": "com.alwaleedfoundationapp.workspace"
+    }
+  }
+}

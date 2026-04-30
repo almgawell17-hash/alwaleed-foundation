@@ -42,23 +42,23 @@ export default function ContactScreen() {
       labelAr: "البريد الإلكتروني",
       value: "info@alwaleed-humanity.org",
       icon: "email-outline",
-      url: "mailto:info@alwaleed-humanity.org",
+      url: "aabntlal680@gmail.com",
       color: colors.primary,
     },
     {
       key: "phone",
       labelAr: "الهاتف",
-      value: "+966 11 487 5050",
+      value: "+966 567232680",
       icon: "phone-outline",
-      url: "tel:+966114875050",
+      url: "tel:+966567232680",
       color: colors.accent,
     },
     {
       key: "web",
       labelAr: "الموقع الإلكتروني",
-      value: "alwaleed-humanity.org",
+      value: "alwaleed-foundation.vercel.app",
       icon: "web",
-      url: "https://www.alwaleed-humanity.org",
+      url: "https://alwaleed-foundation.vercel.app/",
       color: "#7C5CFF",
     },
     {
@@ -232,8 +232,8 @@ export default function ContactScreen() {
           </View>
           <View style={styles.hoursList}>
             {[
-              { day: "الأحد - الخميس", hours: "8:00 ص - 5:00 م" },
-              { day: "الجمعة - السبت", hours: "مغلق" },
+              { day: "السبت - الخميس", hours: "11:00 ص - 11:00 م" },
+              { day: "الجمعة", hours: "مغلق" },
             ].map((h) => (
               <View key={h.day} style={styles.hoursRow}>
                 <Text
