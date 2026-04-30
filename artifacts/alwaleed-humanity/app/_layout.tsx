@@ -46,6 +46,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="donate" options={{ title: "تبرع الآن" }} />
       <Stack.Screen name="news" options={{ title: "آخر الأخبار" }} />
+      <Stack.Screen name="request-help" options={{ title: "اطلب مساعدة الآن" }} />
       <Stack.Screen name="contact" options={{ title: "تواصل معنا" }} />
       <Stack.Screen name="settings" options={{ title: "إعدادات التطبيق" }} />
       <Stack.Screen name="language" options={{ title: "تغيير اللغة" }} />

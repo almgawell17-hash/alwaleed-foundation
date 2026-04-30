@@ -32,7 +32,7 @@ type MainAction = {
   label: string;
   sub: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  route: "/donate" | "/news" | "/contact";
+  route: "/donate" | "/request-help" | "/contact";
   color: string;
 };
 
@@ -71,11 +71,11 @@ export default function HomeScreen() {
       color: colors.primary,
     },
     {
-      key: "news",
-      label: "آخر الأخبار",
-      sub: "تابع جديد المؤسسة",
-      icon: "newspaper-variant-outline",
-      route: "/news",
+      key: "request-help",
+      label: "اطلب مساعدة الآن",
+      sub: "تقديم طلب مساعدة عاجل",
+      icon: "hand-heart-outline",
+      route: "/request-help",
       color: colors.accent,
     },
     {
