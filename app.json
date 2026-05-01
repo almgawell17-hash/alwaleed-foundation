@@ -1,12 +1,16 @@
 {
   "expo": {
+    "name": "Alwaleed App",
+    "slug": "alwaleed-app-new",
+    "version": "1.0.0",
+    "sdkVersion": "51.0.0",
+    "android": {
+      "package": "com.alwaleed.foundation.app"
+    },
     "extra": {
       "eas": {
-        "projectId": "cd7b92c0-85c9-4524-b188-b3570545dec0"
+        "projectId": "1c09db9e-f89e-4708-a43b-fa00e3b1ce1f"
       }
-    },
-    "android": {
-      "package": "com.alwaleedfoundationapp.workspace"
     }
   }
 }
