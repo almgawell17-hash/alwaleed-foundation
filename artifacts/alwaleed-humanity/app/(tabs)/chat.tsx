@@ -1,11 +1,13 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import { useState, useRef } from "react";
 import {
   ActionSheetIOS,
   Alert,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,7 +18,9 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AuthModal } from "@/components/AuthModal";
 import { ChatBubble, TypingIndicator } from "@/components/ChatBubble";
+import { useAuth } from "@/hooks/useAuth";
 import { useChat, type ChatMessage, type SendMediaPayload } from "@/hooks/useChat";
 import { useColors } from "@/hooks/useColors";
 
@@ -26,12 +30,19 @@ const isIOS = Platform.OS === "ios";
 export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user, authDecided, loading: authLoading, signInWithGoogle, skipAuth, unlockAdmin } = useAuth();
   const { messages, isAgentTyping, send, clear } = useChat();
 
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
-  const recordingRef = useRef<{ recording: import("expo-av").Audio.Recording; timer: ReturnType<typeof setInterval> } | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminCode, setAdminCode] = useState("");
+  const [adminError, setAdminError] = useState("");
+  const recordingRef = useRef<{
+    recording: import("expo-av").Audio.Recording;
+    timer: ReturnType<typeof setInterval>;
+  } | null>(null);
 
   const headerTopPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 84 + 8 : insets.bottom + 8;
@@ -48,8 +59,6 @@ export default function ChatScreen() {
     setInput("");
     send(text);
   };
-
-  // ── Media Attachment ─────────────────────────────────────────────────────
 
   const pickImage = async (type: "image" | "video") => {
     try {
@@ -80,37 +89,24 @@ export default function ChatScreen() {
     }
   };
 
-  const pickFile = async () => {
-    // File picking via image picker (documents not supported on all platforms)
-    await pickImage("image");
-  };
-
   const showAttachMenu = () => {
     haptic();
     if (isIOS) {
       ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["إلغاء", "صورة من المعرض", "فيديو", "ملف"],
-          cancelButtonIndex: 0,
-          title: "إرفاق وسائط",
-        },
+        { options: ["إلغاء", "صورة من المعرض", "فيديو"], cancelButtonIndex: 0, title: "إرفاق وسائط" },
         (i) => {
           if (i === 1) pickImage("image");
           else if (i === 2) pickImage("video");
-          else if (i === 3) pickFile();
         },
       );
     } else {
       Alert.alert("إرفاق وسائط", undefined, [
         { text: "صورة من المعرض", onPress: () => pickImage("image") },
         { text: "فيديو", onPress: () => pickImage("video") },
-        { text: "ملف", onPress: () => pickFile() },
         { text: "إلغاء", style: "cancel" },
       ]);
     }
   };
-
-  // ── Voice Recording ──────────────────────────────────────────────────────
 
   const startRecording = async () => {
     if (isWeb) {
@@ -124,10 +120,7 @@ export default function ChatScreen() {
         Alert.alert("إذن مطلوب", "يرجى السماح بالوصول إلى الميكروفون.");
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const { recording: rec } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
@@ -135,7 +128,7 @@ export default function ChatScreen() {
       const timer = setInterval(() => {
         seconds++;
         setRecordDuration(seconds);
-        if (seconds >= 120) stopRecording(); // max 2 min
+        if (seconds >= 120) stopRecording();
       }, 1000);
       recordingRef.current = { recording: rec, timer };
       setRecording(true);
@@ -152,7 +145,6 @@ export default function ChatScreen() {
     clearInterval(timer);
     recordingRef.current = null;
     setRecording(false);
-
     try {
       await rec.stopAndUnloadAsync();
       const uri = rec.getURI();
@@ -169,19 +161,130 @@ export default function ChatScreen() {
   };
 
   const handleMicPress = () => {
-    if (recording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    if (recording) stopRecording();
+    else startRecording();
   };
 
   const formatRecordTime = (s: number) =>
     `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
+  const handleAdminLongPress = () => {
+    if (user?.isAdmin) {
+      router.push("/admin");
+    } else {
+      setAdminCode("");
+      setAdminError("");
+      setShowAdminModal(true);
+    }
+  };
+
+  const submitAdminCode = () => {
+    if (unlockAdmin(adminCode)) {
+      setShowAdminModal(false);
+      router.push("/admin");
+    } else {
+      setAdminError("رمز الوصول غير صحيح");
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+      <AuthModal
+        visible={!authLoading && !authDecided}
+        onGoogleSignIn={signInWithGoogle}
+        onSkip={skipAuth}
+      />
+
+      <Modal
+        visible={showAdminModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAdminModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowAdminModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.adminCodeSheet,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.adminCodeHeader}>
+              <Feather name="shield" size={22} color={colors.primary} />
+              <Text
+                style={[
+                  styles.adminCodeTitle,
+                  { color: colors.foreground, fontFamily: "Inter_700Bold" },
+                ]}
+              >
+                دخول الإدارة
+              </Text>
+            </View>
+
+            <TextInput
+              value={adminCode}
+              onChangeText={(v) => { setAdminCode(v); setAdminError(""); }}
+              placeholder="أدخل رمز الوصول..."
+              placeholderTextColor={colors.mutedForeground}
+              secureTextEntry
+              autoFocus
+              style={[
+                styles.adminCodeInput,
+                {
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                  borderColor: adminError ? "#E5484D" : colors.border,
+                  fontFamily: "Inter_400Regular",
+                  textAlign: "right",
+                },
+              ]}
+              onSubmitEditing={submitAdminCode}
+              returnKeyType="done"
+            />
+
+            {adminError ? (
+              <Text
+                style={[styles.adminError, { color: "#E5484D", fontFamily: "Inter_400Regular" }]}
+              >
+                {adminError}
+              </Text>
+            ) : null}
+
+            <View style={styles.adminCodeBtns}>
+              <Pressable
+                onPress={() => setShowAdminModal(false)}
+                style={[styles.adminCancelBtn, { borderColor: colors.border }]}
+              >
+                <Text
+                  style={[
+                    styles.adminCancelText,
+                    { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
+                  ]}
+                >
+                  إلغاء
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={submitAdminCode}
+                style={[styles.adminConfirmBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text
+                  style={[
+                    styles.adminConfirmText,
+                    { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" },
+                  ]}
+                >
+                  دخول
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <View
         style={[
           styles.header,
@@ -215,28 +318,37 @@ export default function ChatScreen() {
           <Text
             style={[
               styles.headerTitle,
-              {
-                color: colors.foreground,
-                fontFamily: "Inter_600SemiBold",
-                writingDirection: "rtl",
-              },
+              { color: colors.foreground, fontFamily: "Inter_600SemiBold", writingDirection: "rtl" },
             ]}
           >
             الدعم الفني
           </Text>
         </View>
 
-        <View
-          style={[
+        <Pressable
+          onLongPress={handleAdminLongPress}
+          delayLongPress={600}
+          onPress={user?.isAdmin ? () => router.push("/admin") : undefined}
+          hitSlop={6}
+          style={({ pressed }) => [
             styles.avatar,
             {
-              backgroundColor: colors.primary + "26",
-              borderColor: colors.primary + "60",
+              backgroundColor: user?.isAdmin
+                ? colors.accent + "26"
+                : colors.primary + "26",
+              borderColor: user?.isAdmin
+                ? colors.accent + "70"
+                : colors.primary + "60",
+              opacity: pressed ? 0.75 : 1,
             },
           ]}
         >
-          <Feather name="headphones" size={18} color={colors.primary} />
-        </View>
+          <Feather
+            name={user?.isAdmin ? "shield" : "headphones"}
+            size={18}
+            color={user?.isAdmin ? colors.accent : colors.primary}
+          />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView behavior="padding" style={styles.kavWrap} keyboardVerticalOffset={0}>
@@ -252,7 +364,6 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
         />
 
-        {/* Input Bar */}
         <View
           style={[
             styles.inputBar,
@@ -264,7 +375,6 @@ export default function ChatScreen() {
           ]}
         >
           {recording ? (
-            /* Recording indicator */
             <View style={styles.recordingRow}>
               <Pressable
                 onPress={stopRecording}
@@ -272,7 +382,6 @@ export default function ChatScreen() {
               >
                 <MaterialCommunityIcons name="stop" size={18} color="#fff" />
               </Pressable>
-
               <View style={styles.recordingIndicator}>
                 <View style={[styles.recordDot, { backgroundColor: "#E5484D" }]} />
                 <Text
@@ -294,9 +403,7 @@ export default function ChatScreen() {
               </View>
             </View>
           ) : (
-            /* Normal input row */
             <>
-              {/* Send button */}
               <Pressable
                 onPress={handleSend}
                 disabled={!input.trim()}
@@ -315,7 +422,6 @@ export default function ChatScreen() {
                 />
               </Pressable>
 
-              {/* Text input */}
               <TextInput
                 value={input}
                 onChangeText={setInput}
@@ -339,31 +445,21 @@ export default function ChatScreen() {
                 blurOnSubmit={false}
               />
 
-              {/* Mic button */}
               <Pressable
                 onPress={handleMicPress}
                 style={({ pressed }) => [
                   styles.mediaBtn,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
+                  { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                 ]}
               >
                 <Feather name="mic" size={18} color={colors.mutedForeground} />
               </Pressable>
 
-              {/* Attach button */}
               <Pressable
                 onPress={showAttachMenu}
                 style={({ pressed }) => [
                   styles.mediaBtn,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
+                  { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                 ]}
               >
                 <Feather name="paperclip" size={18} color={colors.mutedForeground} />
@@ -386,35 +482,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 12,
   },
-  headerBtn: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  headerBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   headerCenter: { flex: 1, alignItems: "flex-end", gap: 2 },
   headerTitle: { fontSize: 16 },
-  headerStatusRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 5,
-  },
+  headerStatusRow: { flexDirection: "row-reverse", alignItems: "center", gap: 5 },
   onlineDot: { width: 7, height: 7, borderRadius: 3.5 },
   headerStatus: { fontSize: 11 },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
   kavWrap: { flex: 1 },
-  listContent: {
-    paddingTop: 16,
-    paddingBottom: 8,
-    flexGrow: 1,
-  },
+  listContent: { paddingTop: 16, paddingBottom: 8, flexGrow: 1 },
   inputBar: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
@@ -424,11 +503,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
   },
   input: {
     flex: 1,
@@ -441,45 +517,58 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   mediaBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
-  // Recording state
   recordingRow: {
-    flex: 1,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 6,
+    flex: 1, flexDirection: "row-reverse",
+    alignItems: "center", gap: 12, paddingVertical: 6,
   },
   recordStopBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
   },
   recordingIndicator: {
-    flex: 1,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
+    flex: 1, flexDirection: "row-reverse", alignItems: "center", gap: 8,
   },
-  recordDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    opacity: 0.9,
+  recordDot: { width: 8, height: 8, borderRadius: 4, opacity: 0.9 },
+  recordTime: { fontSize: 18, letterSpacing: 1 },
+  recordLabel: { fontSize: 12 },
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center", alignItems: "center", padding: 24,
   },
-  recordTime: {
-    fontSize: 18,
-    letterSpacing: 1,
+  adminCodeSheet: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    gap: 14,
   },
-  recordLabel: {
-    fontSize: 12,
+  adminCodeHeader: {
+    flexDirection: "row-reverse", alignItems: "center", gap: 10,
   },
+  adminCodeTitle: { fontSize: 18 },
+  adminCodeInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+  },
+  adminError: { fontSize: 13, textAlign: "right" },
+  adminCodeBtns: {
+    flexDirection: "row-reverse", gap: 10, marginTop: 4,
+  },
+  adminCancelBtn: {
+    flex: 1, height: 46, borderRadius: 12,
+    alignItems: "center", justifyContent: "center", borderWidth: 1,
+  },
+  adminCancelText: { fontSize: 15 },
+  adminConfirmBtn: {
+    flex: 1, height: 46, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  adminConfirmText: { fontSize: 15 },
 });

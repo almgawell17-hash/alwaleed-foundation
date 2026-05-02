@@ -18,9 +18,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CampaignsProvider } from "@/hooks/useCampaigns";
+import { AuthProvider } from "@/hooks/useAuth";
 import { ChatProvider } from "@/hooks/useChat";
 
-// Configure foreground notification handling
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -62,6 +62,13 @@ function RootLayoutNav() {
       <Stack.Screen name="contact" options={{ title: "تواصل معنا" }} />
       <Stack.Screen name="settings" options={{ title: "إعدادات التطبيق" }} />
       <Stack.Screen name="language" options={{ title: "تغيير اللغة" }} />
+      <Stack.Screen
+        name="admin"
+        options={{
+          headerShown: false,
+          presentation: "modal",
+        }}
+      />
     </Stack>
   );
 }
@@ -89,10 +96,12 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A1014" }}>
             <KeyboardProvider>
               <CampaignsProvider>
-                <ChatProvider>
-                  <StatusBar style="light" />
-                  <RootLayoutNav />
-                </ChatProvider>
+                <AuthProvider>
+                  <ChatProvider>
+                    <StatusBar style="light" />
+                    <RootLayoutNav />
+                  </ChatProvider>
+                </AuthProvider>
               </CampaignsProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

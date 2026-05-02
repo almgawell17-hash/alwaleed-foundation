@@ -29,16 +29,37 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ## Artifacts
 
 - **alwaleed-humanity** (`/`) — Expo mobile app for "AlWaleed for Humanity / مؤسسة الوليد للإنسانية".
-  Arabic-first dark theme (gold + teal palette), 4 tabs (Home, Campaigns, Chat, About)
-  plus 5 stack screens pushed from the home screen: `donate`, `news`, `contact`,
-  `settings`, `language`. Home header has a 3-dot menu (MaterialCommunityIcons
-  `dots-vertical`) opening a Modal with App Settings / Change Language / About.
-  The home screen's main CTA is a 3-button action row (تبرع الآن / آخر الأخبار /
-  تواصل معنا) that pushes onto the stack. Offline support via AsyncStorage,
-  simulated real-time support chat, tablet-ready.
-  Font: Tajawal (Arabic + Latin), aliased to the `Inter_*` keys throughout the codebase.
+  Arabic-first dark theme (gold #D4A24C + teal #0E8388, bg #0A1014), 4 tabs (Home, Campaigns, Chat, About)
+  plus stack screens: `donate`, `news`, `contact`, `settings`, `language`, `admin`.
+  Font: Tajawal (Arabic + Latin), aliased to `Inter_*` keys throughout.
+
+  **Auth system** (`hooks/useAuth.tsx`):
+  - Google OAuth via Supabase + expo-web-browser (native) / redirect (web)
+  - Anonymous fallback: unique session_id stored in AsyncStorage
+  - Admin unlock: long-press chat avatar → enter `EXPO_PUBLIC_ADMIN_SECRET`
+  - Auth decision persisted in `@alwaleed/auth-decided/v1`
+
+  **Chat system** (`hooks/useChat.tsx`):
+  - session_id sourced from useAuth (Google user ID or anon ID)
+  - Supabase Realtime subscription per session (postgres_changes)
+  - Local auto-reply fallback when offline
+  - Media: image, video, voice (expo-av), file bubbles
+  - Push notifications via expo-notifications for agent replies
+
+  **Admin Panel** (`app/admin.tsx`):
+  - Session list: all distinct session_ids with last message preview + unread indicator
+  - Session detail: full message history (ChatBubble) + reply-as-agent input bar
+  - Realtime: subscribes to new messages across all sessions (list) and per session (detail)
+  - Access: long-press chat avatar → enter admin code → navigates to /admin modal
+
+  **Supabase** (`lib/supabase.ts`):
+  - Project: rixxshbiyahqogaythej.supabase.co
+  - Table: `chat_messages` (id, session_id, role, content, media_type, file_name, created_at)
+  - SQL setup: `artifacts/alwaleed-humanity/supabase-setup.sql`
+  - Env vars: EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_ADMIN_SECRET
+
   Local persistence keys: `@alwaleed/campaigns/v1`, `@alwaleed/news/v1`,
-  `@alwaleed/saved/v1`, `@alwaleed/chat/v1`, `@alwaleed/settings/v1`,
-  `@alwaleed/language/v1`.
+  `@alwaleed/saved/v1`, `@alwaleed/chat/v2`, `@alwaleed/settings/v1`,
+  `@alwaleed/language/v1`, `@alwaleed/session/v2`, `@alwaleed/auth-decided/v1`.
 - **api-server** (`/api`) — shared Express API (currently only `/api/healthz`).
 - **mockup-sandbox** (`/__mockup`) — design canvas sandbox.

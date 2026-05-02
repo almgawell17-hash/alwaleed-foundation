@@ -10,10 +10,10 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 
+import { useAuth } from "@/hooks/useAuth";
 import { CHAT_TABLE, supabase } from "@/lib/supabase";
 
-const CHAT_KEY = "@alwaleed/chat/v1";
-const SESSION_KEY = "@alwaleed/session/v1";
+const CHAT_KEY = "@alwaleed/chat/v2";
 
 export type MediaType = "image" | "video" | "voice" | "file";
 
@@ -39,6 +39,7 @@ type ChatContextValue = {
   messages: ChatMessage[];
   loaded: boolean;
   isAgentTyping: boolean;
+  sessionId: string;
   send: (text: string, media?: SendMediaPayload) => Promise<void>;
   clear: () => Promise<void>;
 };
@@ -56,26 +57,20 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
-function getAgentReply(text: string): string {
+function getAutoReply(text: string): string {
   const t = text.toLowerCase();
-  if (t.includes("تبرع") || t.includes("donate") || t.includes("ادفع"))
-    return "يمكنك التبرع مباشرة من تبويب الحملات. اختر الحملة التي تريد دعمها وسنرشدك خلال خطوات بسيطة. شكراً لكرمك.";
-  if (t.includes("تطوع") || t.includes("volunteer") || t.includes("انضم"))
-    return "نرحب بانضمامك إلى فريق المتطوعين. يرجى إرسال اسمك الكامل ومدينتك لنتواصل معك خلال 48 ساعة.";
-  if (t.includes("حملة") || t.includes("campaign") || t.includes("مشروع"))
-    return "لدينا حالياً 48 حملة نشطة في 32 دولة. تفقد تبويب الحملات لمشاهدة التفاصيل وأين تذهب تبرعاتك بالضبط.";
-  if (
-    t.includes("سلام") ||
-    t.includes("مرحبا") ||
-    t.includes("اهلا") ||
-    t.includes("hi") ||
-    t.includes("hello")
-  )
+  if (t.includes("تبرع") || t.includes("donate"))
+    return "يمكنك التبرع من تبويب الحملات. اختر الحملة وسنرشدك خلال خطوات بسيطة. شكراً لكرمك.";
+  if (t.includes("تطوع") || t.includes("volunteer"))
+    return "نرحب بانضمامك. يرجى إرسال اسمك الكامل ومدينتك لنتواصل معك خلال 48 ساعة.";
+  if (t.includes("حملة") || t.includes("campaign"))
+    return "لدينا حالياً 48 حملة نشطة في 32 دولة. تفقد تبويب الحملات لمشاهدة التفاصيل.";
+  if (t.includes("سلام") || t.includes("مرحبا") || t.includes("hi") || t.includes("hello"))
     return "وعليكم السلام ورحمة الله وبركاته. أنا هنا للإجابة على استفساراتك. هل تريد معرفة المزيد عن حملة معينة؟";
   if (t.includes("شكر") || t.includes("thanks"))
-    return "العفو، الشكر لله أولاً ولكم على كرمكم. نحن في خدمتكم دائماً.";
+    return "العفو، الشكر لله أولاً ولكم. نحن في خدمتكم دائماً.";
   if (t.includes("مساعدة") || t.includes("help"))
-    return "يسعدنا مساعدتك. يمكنك تقديم طلب مساعدة عبر زر 'اطلب مساعدة الآن' في الصفحة الرئيسية أو شرح حالتك هنا.";
+    return "يسعدنا مساعدتك. يمكنك تقديم طلب مساعدة عبر زر 'اطلب مساعدة الآن' في الصفحة الرئيسية.";
   return "شكراً لتواصلك. تم استلام رسالتك وسيقوم أحد ممثلي الدعم بالرد عليك في أقرب وقت ممكن.";
 }
 
@@ -85,65 +80,51 @@ async function scheduleNotification(body: string) {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") return;
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "مؤسسة الوليد للإنسانية",
-        body,
-        sound: true,
-      },
+      content: { title: "مؤسسة الوليد للإنسانية", body, sound: true },
       trigger: null,
     });
-  } catch {
-    // Notifications not available
-  }
+  } catch {}
 }
 
 async function requestNotificationPermission() {
   if (Platform.OS === "web") return;
   try {
     const { status } = await Notifications.getPermissionsAsync();
-    if (status !== "granted") {
-      await Notifications.requestPermissionsAsync();
-    }
-  } catch {
-    // ignore
-  }
+    if (status !== "granted") await Notifications.requestPermissionsAsync();
+  } catch {}
 }
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
+  const { sessionId } = useAuth();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [isAgentTyping, setIsAgentTyping] = useState(false);
 
-  const sessionRef = useRef<string>("");
   const localIds = useRef(new Set<string>());
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const persist = useCallback(async (msgs: ChatMessage[]) => {
-    try {
-      await AsyncStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
-    } catch {
-      // ignore
-    }
-  }, []);
+  const chatKey = CHAT_KEY + (sessionId ? `_${sessionId}` : "");
+
+  const persist = useCallback(
+    async (msgs: ChatMessage[]) => {
+      if (!sessionId) return;
+      try {
+        await AsyncStorage.setItem(chatKey, JSON.stringify(msgs));
+      } catch {}
+    },
+    [chatKey, sessionId],
+  );
 
   useEffect(() => {
+    if (!sessionId) return;
     let cancelled = false;
 
     (async () => {
-      // 1. Request notification permissions
       await requestNotificationPermission();
 
-      // 2. Load or generate session ID
-      let sid = await AsyncStorage.getItem(SESSION_KEY).catch(() => null);
-      if (!sid) {
-        sid = generateId();
-        await AsyncStorage.setItem(SESSION_KEY, sid).catch(() => {});
-      }
-      sessionRef.current = sid;
-
-      // 3. Load messages from local cache
       try {
-        const raw = await AsyncStorage.getItem(CHAT_KEY);
+        const raw = await AsyncStorage.getItem(chatKey);
         if (cancelled) return;
         if (raw) {
           const parsed = JSON.parse(raw) as ChatMessage[];
@@ -158,18 +139,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
       setLoaded(true);
 
-      // 4. Subscribe to Supabase Realtime
-      if (Platform.OS === "web") return; // realtime works on native only reliably
       try {
+        channelRef.current?.unsubscribe().catch(() => {});
         const channel = supabase
-          .channel(`chat_session_${sid}`)
+          .channel(`chat_user_${sessionId}`)
           .on(
             "postgres_changes",
             {
               event: "INSERT",
               schema: "public",
               table: CHAT_TABLE,
-              filter: `session_id=eq.${sid}`,
+              filter: `session_id=eq.${sessionId}`,
             },
             (payload) => {
               const row = payload.new as {
@@ -180,10 +160,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 media_type?: string;
                 file_name?: string;
               };
-
-              // Skip messages we inserted ourselves
               if (localIds.current.has(row.id)) return;
-
               const msg: ChatMessage = {
                 id: row.id,
                 role: row.role as "user" | "agent",
@@ -192,26 +169,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 mediaType: row.media_type as MediaType | undefined,
                 fileName: row.file_name,
               };
-
               if (cancelled) return;
               setMessages((prev) => {
                 const next = [...prev, msg];
                 persist(next);
                 return next;
               });
-
-              // Fire notification + sound for real agent replies
               if (row.role === "agent") {
-                scheduleNotification(row.content ?? "رسالة جديدة");
+                scheduleNotification(row.content ?? "رسالة جديدة من الدعم الفني");
               }
             },
           )
           .subscribe();
-
         channelRef.current = channel;
-      } catch {
-        // Supabase not reachable — local mode
-      }
+      } catch {}
     })();
 
     return () => {
@@ -219,7 +190,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       channelRef.current?.unsubscribe().catch(() => {});
       channelRef.current = null;
     };
-  }, [persist]);
+  }, [sessionId, chatKey, persist]);
 
   const send = useCallback(
     async (text: string, media?: SendMediaPayload) => {
@@ -249,27 +220,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
 
-      // Save text message to Supabase (media URIs are local, skip uploading)
-      if (trimmed && !media) {
+      if (trimmed) {
         supabase
           .from(CHAT_TABLE)
           .insert({
             id: msgId,
-            session_id: sessionRef.current,
+            session_id: sessionId,
             role: "user",
             content: trimmed,
           })
           .then(({ error }) => {
-            if (error) console.warn("[Chat] Supabase insert:", error.message);
+            if (error) console.warn("[Chat] insert:", error.message);
           });
       }
 
-      // Auto-reply only for text messages
       if (trimmed) {
         setIsAgentTyping(true);
-        const replyText = getAgentReply(trimmed);
+        const replyText = getAutoReply(trimmed);
         const delay = 900 + Math.random() * 700;
-
         setTimeout(() => {
           const replyId = generateId();
           const agentMsg: ChatMessage = {
@@ -278,7 +246,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             text: replyText,
             timestamp: Date.now(),
           };
-
           localIds.current.add(replyId);
           setMessages((prev) => {
             const next = [...prev, agentMsg];
@@ -286,13 +253,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             return next;
           });
           setIsAgentTyping(false);
-
-          // Persist agent reply to Supabase so admins can see conversation
           supabase
             .from(CHAT_TABLE)
             .insert({
               id: replyId,
-              session_id: sessionRef.current,
+              session_id: sessionId,
               role: "agent",
               content: replyText,
             })
@@ -300,7 +265,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }, delay);
       }
     },
-    [persist],
+    [persist, sessionId],
   );
 
   const clear = useCallback(async () => {
@@ -309,7 +274,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [persist]);
 
   return (
-    <ChatContext.Provider value={{ messages, loaded, isAgentTyping, send, clear }}>
+    <ChatContext.Provider
+      value={{ messages, loaded, isAgentTyping, sessionId, send, clear }}
+    >
       {children}
     </ChatContext.Provider>
   );
