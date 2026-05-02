@@ -32,5 +32,15 @@ localPort = 8082
 externalPort = 3002
 
 [[ports]]
+localPort = 8083
+externalPort = 3001
+
+[[ports]]
 localPort = 21937
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_URL = "https://rixxshbiyahqogaythej.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpeHhzaGJpeWFocW9nYXl0aGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NDM4ODgsImV4cCI6MjA5MzMxOTg4OH0.C0IANrYLuS0gcWLvPWrVS9PfdRxJGwQHnTNnpQrkBSM"

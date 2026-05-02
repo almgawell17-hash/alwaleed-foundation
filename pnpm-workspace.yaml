@@ -160,5 +160,6 @@ overrides:
   esbuild: "0.27.3"
   # Fix GHSA-qx2v-qp2m-jg93: PostCSS XSS via unescaped </style> in CSS stringify output
   postcss: ">=8.5.10"
-  # Fix GHSA-w5hq-g745-h8pq: uuid missing buffer bounds check in v3/v5/v6
-  uuid: ">=14.0.0"
+  # uuid@14 is ESM-only and breaks Metro bundler; scoped overrides for direct parents only
+  "@expo/ngrok>uuid": "^9.0.0"
+  "xcode>uuid": "^9.0.0"
