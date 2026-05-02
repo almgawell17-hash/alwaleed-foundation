@@ -62,6 +62,7 @@ function RootLayoutNav() {
       <Stack.Screen name="contact" options={{ title: "تواصل معنا" }} />
       <Stack.Screen name="settings" options={{ title: "إعدادات التطبيق" }} />
       <Stack.Screen name="language" options={{ title: "تغيير اللغة" }} />
+      <Stack.Screen name="profile" options={{ title: "الملف الشخصي" }} />
       <Stack.Screen
         name="admin"
         options={{

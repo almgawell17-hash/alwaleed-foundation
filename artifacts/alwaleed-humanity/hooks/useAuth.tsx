@@ -18,6 +18,7 @@ if (Platform.OS !== "web") {
 
 const ANON_SESSION_KEY = "@alwaleed/session/v2";
 const AUTH_DECIDED_KEY = "@alwaleed/auth-decided/v1";
+const PROFILE_KEY = "@alwaleed/profile/v1";
 
 const ADMIN_SECRET =
   (process.env.EXPO_PUBLIC_ADMIN_SECRET as string | undefined) ??
@@ -27,9 +28,13 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  phone: string;
   avatar?: string;
   isAdmin: boolean;
+  isAnonymous: boolean;
 };
+
+type LocalProfile = { displayName: string; phone: string };
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -39,6 +44,7 @@ type AuthContextValue = {
   signInWithGoogle: () => Promise<void>;
   skipAuth: () => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (name: string, phone: string) => Promise<void>;
   unlockAdmin: (secret: string) => boolean;
 };
 
@@ -48,17 +54,42 @@ function makeAnonId() {
   return "anon_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-function buildUser(supabaseUser: { id: string; email?: string; user_metadata?: Record<string, string> }, isAdmin: boolean): AuthUser {
+async function loadLocalProfile(): Promise<LocalProfile> {
+  try {
+    const raw = await AsyncStorage.getItem(PROFILE_KEY);
+    if (raw) return JSON.parse(raw) as LocalProfile;
+  } catch {}
+  return { displayName: "", phone: "" };
+}
+
+async function saveLocalProfile(p: LocalProfile) {
+  try {
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  } catch {}
+}
+
+function buildUser(
+  supabaseUser: {
+    id: string;
+    email?: string;
+    user_metadata?: Record<string, string>;
+  },
+  localProfile: LocalProfile,
+  isAdmin: boolean,
+): AuthUser {
+  const metaName =
+    supabaseUser.user_metadata?.full_name ??
+    supabaseUser.user_metadata?.name ??
+    "";
+  const metaPhone = supabaseUser.user_metadata?.phone ?? "";
   return {
     id: supabaseUser.id,
     email: supabaseUser.email ?? "",
-    name:
-      supabaseUser.user_metadata?.full_name ??
-      supabaseUser.user_metadata?.name ??
-      supabaseUser.email ??
-      "مستخدم",
+    name: localProfile.displayName || metaName || (supabaseUser.email ?? "مستخدم"),
+    phone: localProfile.phone || metaPhone,
     avatar: supabaseUser.user_metadata?.avatar_url,
     isAdmin,
+    isAnonymous: false,
   };
 }
 
@@ -84,6 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       try {
         const decided = await AsyncStorage.getItem(AUTH_DECIDED_KEY).catch(() => null);
+        const localProfile = await loadLocalProfile();
+
         let session = null;
         try {
           const res = await supabase.auth.getSession();
@@ -94,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           const isAdmin = adminUnlockedRef.current;
-          setUser(buildUser(session.user, isAdmin));
+          setUser(buildUser(session.user, localProfile, isAdmin));
           setSessionId(session.user.id);
           setAuthDecided(true);
         } else {
@@ -110,21 +143,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (cancelled) return;
-        if (session?.user) {
-          const isAdmin = adminUnlockedRef.current;
-          setUser(buildUser(session.user, isAdmin));
-          setSessionId(session.user.id);
-          setAuthDecided(true);
-        } else {
-          setUser(null);
-          const sid = await resolveAnonSession();
-          if (!cancelled) setSessionId(sid);
-        }
-      },
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled) return;
+      if (session?.user) {
+        const localProfile = await loadLocalProfile();
+        const isAdmin = adminUnlockedRef.current;
+        setUser(buildUser(session.user, localProfile, isAdmin));
+        setSessionId(session.user.id);
+        setAuthDecided(true);
+      } else {
+        setUser(null);
+        const sid = await resolveAnonSession();
+        if (!cancelled) setSessionId(sid);
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -137,7 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+          redirectTo:
+            typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
       return;
@@ -178,15 +213,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => {});
     await AsyncStorage.removeItem(AUTH_DECIDED_KEY).catch(() => {});
     setAuthDecided(false);
+    setUser(null);
   }, []);
+
+  const updateProfile = useCallback(
+    async (name: string, phone: string) => {
+      const trimName = name.trim();
+      const trimPhone = phone.trim();
+      const localProfile: LocalProfile = {
+        displayName: trimName,
+        phone: trimPhone,
+      };
+      await saveLocalProfile(localProfile);
+
+      setUser((u) => {
+        if (!u) return u;
+        return { ...u, name: trimName || u.name, phone: trimPhone };
+      });
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await supabase.auth.updateUser({
+            data: { full_name: trimName, phone: trimPhone },
+          });
+        }
+      } catch {}
+    },
+    [],
+  );
 
   const unlockAdmin = useCallback((secret: string): boolean => {
     if (secret.trim() === ADMIN_SECRET) {
       adminUnlockedRef.current = true;
-      setUser((u) => (u ? { ...u, isAdmin: true } : null));
+      setUser((u) => (u ? { ...u, isAdmin: true } : u));
       return true;
     }
     return false;
@@ -202,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         skipAuth,
         signOut,
+        updateProfile,
         unlockAdmin,
       }}
     >

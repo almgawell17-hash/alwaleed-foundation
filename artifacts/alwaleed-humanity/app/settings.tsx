@@ -1,6 +1,8 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -15,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Card } from "@/components/Card";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 
 const STORAGE_KEY = "@alwaleed/settings/v1";
@@ -38,6 +41,7 @@ const DEFAULTS: SettingsState = {
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user, sessionId, signOut } = useAuth();
   const [state, setState] = useState<SettingsState>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
 
@@ -78,12 +82,10 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               const keys = await AsyncStorage.getAllKeys();
-              const toRemove = keys.filter((k) =>
-                k.startsWith("@alwaleed/"),
+              const toRemove = keys.filter(
+                (k) => k.startsWith("@alwaleed/") && k !== STORAGE_KEY,
               );
-              await AsyncStorage.multiRemove(
-                toRemove.filter((k) => k !== STORAGE_KEY),
-              );
+              await AsyncStorage.multiRemove(toRemove);
               Alert.alert("تم", "تم مسح الذاكرة المؤقتة بنجاح.");
             } catch {
               Alert.alert("خطأ", "حدث خطأ أثناء مسح الذاكرة المؤقتة.");
@@ -94,10 +96,31 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleSignOut = () => {
+    if (!user) return;
+    Alert.alert("تسجيل الخروج", "هل تريد تسجيل الخروج؟", [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "خروج",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+        },
+      },
+    ]);
+  };
+
+  const displayName = user?.name || "مستخدم مجهول";
+  const displayEmail = user?.email || "بدون تسجيل";
+  const initials = displayName
+    .split(" ")
+    .map((w: string) => w[0] ?? "")
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "م";
+
   return (
-    <View
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -105,6 +128,78 @@ export default function SettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Profile card — top of settings */}
+        <Pressable
+          onPress={() => router.push("/profile")}
+          style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Card
+            style={{
+              flexDirection: "row-reverse",
+              alignItems: "center",
+              gap: 14,
+              paddingVertical: 14,
+            }}
+          >
+            {user?.avatar ? (
+              <Image
+                source={{ uri: user.avatar }}
+                style={[
+                  styles.profileAvatar,
+                  { borderColor: colors.primary },
+                ]}
+                contentFit="cover"
+              />
+            ) : (
+              <View
+                style={[
+                  styles.profileAvatar,
+                  {
+                    backgroundColor: colors.primary + "22",
+                    borderColor: colors.primary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.profileInitials,
+                    { color: colors.primary, fontFamily: "Inter_700Bold" },
+                  ]}
+                >
+                  {initials}
+                </Text>
+              </View>
+            )}
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.profileName,
+                  { color: colors.foreground, fontFamily: "Inter_600SemiBold" },
+                ]}
+                numberOfLines={1}
+              >
+                {displayName}
+              </Text>
+              <Text
+                style={[
+                  styles.profileEmail,
+                  { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
+                ]}
+                numberOfLines={1}
+              >
+                {displayEmail}
+              </Text>
+            </View>
+
+            <View style={styles.profileArrow}>
+              <Feather name="chevron-left" size={18} color={colors.mutedForeground} />
+            </View>
+          </Card>
+        </Pressable>
+
         <Section title="الإشعارات">
           <SettingRow
             icon="bell-outline"
@@ -223,18 +318,10 @@ export default function SettingsScreen() {
         <Section title="البيانات والتخزين">
           <Pressable
             onPress={clearCache}
-            style={({ pressed }) => [
-              styles.actionRow,
-              {
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
+            style={({ pressed }) => [styles.actionRow, { opacity: pressed ? 0.7 : 1 }]}
           >
             <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: colors.destructive + "1F" },
-              ]}
+              style={[styles.iconWrap, { backgroundColor: colors.destructive + "1F" }]}
             >
               <MaterialCommunityIcons
                 name="trash-can-outline"
@@ -268,13 +355,33 @@ export default function SettingsScreen() {
                 حذف البيانات المحفوظة لتحرير المساحة
               </Text>
             </View>
-            <Feather
-              name="chevron-left"
-              size={18}
-              color={colors.mutedForeground}
-            />
+            <Feather name="chevron-left" size={18} color={colors.mutedForeground} />
           </Pressable>
         </Section>
+
+        {user && (
+          <Pressable
+            onPress={handleSignOut}
+            style={({ pressed }) => [
+              styles.signOutBtn,
+              {
+                backgroundColor: colors.destructive + "18",
+                borderColor: colors.destructive + "44",
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Feather name="log-out" size={18} color={colors.destructive} />
+            <Text
+              style={[
+                styles.signOutText,
+                { color: colors.destructive, fontFamily: "Inter_600SemiBold" },
+              ]}
+            >
+              تسجيل الخروج
+            </Text>
+          </Pressable>
+        )}
 
         <Card style={{ alignItems: "center", gap: 4 }}>
           <Text
@@ -301,13 +408,7 @@ export default function SettingsScreen() {
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const colors = useColors();
   return (
     <View style={styles.section}>
@@ -344,23 +445,14 @@ function SettingRow({
   const colors = useColors();
   return (
     <View style={styles.actionRow}>
-      <View
-        style={[
-          styles.iconWrap,
-          { backgroundColor: colors.primary + "1F" },
-        ]}
-      >
+      <View style={[styles.iconWrap, { backgroundColor: colors.primary + "1F" }]}>
         <MaterialCommunityIcons name={icon} size={20} color={colors.primary} />
       </View>
       <View style={styles.rowText}>
         <Text
           style={[
             styles.rowLabel,
-            {
-              color: colors.foreground,
-              fontFamily: "Inter_600SemiBold",
-              writingDirection: "rtl",
-            },
+            { color: colors.foreground, fontFamily: "Inter_600SemiBold", writingDirection: "rtl" },
           ]}
         >
           {label}
@@ -368,11 +460,7 @@ function SettingRow({
         <Text
           style={[
             styles.rowSub,
-            {
-              color: colors.mutedForeground,
-              fontFamily: "Inter_400Regular",
-              writingDirection: "rtl",
-            },
+            { color: colors.mutedForeground, fontFamily: "Inter_400Regular", writingDirection: "rtl" },
           ]}
         >
           {sub}
@@ -398,10 +486,17 @@ function Divider() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: {
-    padding: 20,
-    gap: 22,
+  content: { padding: 20, gap: 22 },
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
   },
+  profileInitials: { fontSize: 20 },
+  profileName: { fontSize: 16, textAlign: "right" },
+  profileEmail: { fontSize: 12, textAlign: "right", marginTop: 2 },
+  profileArrow: { marginLeft: 4 },
   section: { gap: 8 },
   sectionTitle: {
     fontSize: 11,
@@ -425,14 +520,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rowText: { flex: 1, gap: 2 },
-  rowLabel: {
-    fontSize: 14,
-    textAlign: "right",
-  },
-  rowSub: {
-    fontSize: 11,
-    textAlign: "right",
-  },
+  rowLabel: { fontSize: 14, textAlign: "right" },
+  rowSub: { fontSize: 11, textAlign: "right" },
   themeRow: {
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -447,11 +536,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
   },
-  themeBadgeText: {
-    fontSize: 13,
+  themeBadgeText: { fontSize: 13 },
+  themeNote: { fontSize: 12, textAlign: "right" },
+  signOutBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  themeNote: {
-    fontSize: 12,
-    textAlign: "right",
-  },
+  signOutText: { fontSize: 16 },
 });
