@@ -1,12 +1,32 @@
 {
   "expo": {
+    "name": "Alwaleed Philanthropies",
+    "slug": "alwaleed-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alwaleedfoundationapp.workspace"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.alwaleedfoundationapp.workspace"
+    },
     "extra": {
       "eas": {
         "projectId": "cd7b92c0-85c9-4524-b188-b3570545dec0"
       }
-    },
-    "android": {
-      "package": "com.alwaleedfoundationapp.workspace"
     }
   }
 }
