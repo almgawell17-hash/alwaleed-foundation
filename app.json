@@ -2,6 +2,7 @@
   "expo": {
     "name": "Alwaleed Philanthropies",
     "slug": "alwaleed-app",
+    "scheme": "alwaleed-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -27,6 +28,7 @@
       "eas": {
         "projectId": "cd7b92c0-85c9-4524-b188-b3570545dec0"
       }
-    }
+    },
+    "plugins": ["expo-web-browser"]
   }
 }

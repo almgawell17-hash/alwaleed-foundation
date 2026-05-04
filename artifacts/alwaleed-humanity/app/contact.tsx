@@ -1,482 +1,283 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
-import { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Linking,
+  ActivityIndicator,
+  FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  Keyboard,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"; // يفضل استخدامها مع التابلت
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Card } from "@/components/Card";
+import { ChatBubble, TypingIndicator } from "@/components/ChatBubble";
+import { useAuth } from "@/hooks/useAuth";
+import type { ChatMessage } from "@/hooks/useChat";
 import { useColors } from "@/hooks/useColors";
+import { CHAT_TABLE, supabase } from "@/lib/supabase";
 
-type ContactMethod = {
-  key: string;
-  labelAr: string;
-  value: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  url: string;
-  color: string;
-};
+// معرف فريد للمتصفح أو الجلسة (لأن الزائر قد لا يملك حساباً)
+const SESSION_ID = "anon_user_123";
 
 export default function ContactScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [isAgentTyping, setIsAgentTyping] = useState(false);
+  const [isAgentOnline, setIsAgentOnline] = useState(false);
 
-  const methods: ContactMethod[] = [
-    {
-      key: "email",
-      labelAr: "البريد الإلكتروني",
-      value: "info@alwaleed-humanity.org",
-      icon: "email-outline",
-      url: "aabntlal680@gmail.com",
-      color: colors.primary,
-    },
-    {
-      key: "phone",
-      labelAr: "الهاتف",
-      value: "+966 567232680",
-      icon: "phone-outline",
-      url: "tel:+966567232680",
-      color: colors.accent,
-    },
-    {
-      key: "web",
-      labelAr: "الموقع الإلكتروني",
-      value: "alwaleed-foundation.vercel.app",
-      icon: "web",
-      url: "https://alwaleed-foundation.vercel.app/",
-      color: "#7C5CFF",
-    },
-    {
-      key: "address",
-      labelAr: "المقر الرئيسي",
-      value: "الرياض، المملكة العربية السعودية",
-      icon: "map-marker-outline",
-      url: "https://maps.google.com/?q=Riyadh,Saudi+Arabia",
-      color: "#E5484D",
-    },
-  ];
+  const presenceChannelRef = useRef<any>(null);
 
-  const openMethod = async (m: ContactMethod) => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync().catch(() => {});
-    }
+  // 1. جلب الرسائل السابقة
+  const loadMessages = useCallback(async () => {
     try {
-      if (m.url.startsWith("http")) {
-        await WebBrowser.openBrowserAsync(m.url);
-      } else {
-        await Linking.openURL(m.url);
-      }
-    } catch {
-      Alert.alert(m.labelAr, m.value);
-    }
-  };
+      const { data } = await supabase
+        .from(CHAT_TABLE)
+        .select("*")
+        .eq("session_id", SESSION_ID)
+        .order("created_at", { ascending: true });
 
-  const onSubmit = () => {
-    if (!name.trim() || !email.trim() || !message.trim()) {
-      Alert.alert(
-        "حقول مطلوبة",
-        "الرجاء تعبئة الاسم والبريد الإلكتروني والرسالة.",
-      );
-      return;
+      if (data) {
+        setMessages(
+          data.map((row) => ({
+            id: row.id,
+            role: row.role,
+            text: row.content,
+            timestamp: new Date(row.created_at).getTime(),
+          })),
+        );
+      }
+    } finally {
+      setLoading(false);
     }
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success,
-      ).catch(() => {});
+  }, []);
+
+  // 2. تفعيل نظام التواجد (Presence) لمعرفة حالة الأدمن
+  useEffect(() => {
+    loadMessages();
+
+    const channel = supabase.channel(`presence:${SESSION_ID}`);
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const agentStatus: any = Object.values(state).find(
+          (p: any) => p[0]?.role === "agent",
+        );
+        setIsAgentOnline(!!agentStatus);
+        setIsAgentTyping(agentStatus?.[0]?.isTyping || false);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ role: "user", isTyping: input.length > 0 });
+        }
+      });
+
+    presenceChannelRef.current = channel;
+
+    // استماع للرسائل الجديدة
+    const msgSub = supabase
+      .channel("new_messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: CHAT_TABLE,
+          filter: `session_id=eq.${SESSION_ID}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: row.id,
+              role: row.role,
+              text: row.content,
+              timestamp: new Date(row.created_at).getTime(),
+            },
+          ]);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      msgSub.unsubscribe();
+    };
+  }, [input.length]);
+
+  // 3. إرسال الرسالة
+  const sendMessage = async () => {
+    if (!input.trim() || sending) return;
+    setSending(true);
+    const text = input;
+    setInput("");
+
+    try {
+      const { error } = await supabase.from(CHAT_TABLE).insert({
+        session_id: SESSION_ID,
+        role: "user",
+        content: text,
+      });
+      if (error) throw error;
+      if (Platform.OS !== "web") Haptics.selectionAsync();
+    } catch {
+      setInput(text);
+      alert("فشل الإرسال");
+    } finally {
+      setSending(false);
     }
-    Alert.alert(
-      "تم إرسال رسالتك",
-      "شكراً لتواصلك معنا. سنرد عليك خلال 24 ساعة.",
-    );
-    setName("");
-    setEmail("");
-    setSubject("");
-    setMessage("");
   };
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: 40 + insets.bottom },
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header المصغر */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 10, borderBottomColor: colors.border },
         ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={styles.intro}>
-          <Text
-            style={[
-              styles.introTitle,
-              {
-                color: colors.foreground,
-                fontFamily: "Inter_700Bold",
-                writingDirection: "rtl",
-              },
-            ]}
-          >
-            نحن هنا لخدمتك
+        <View style={styles.statusInfo}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            الدعم الفني
           </Text>
-          <Text
-            style={[
-              styles.introSub,
-              {
-                color: colors.mutedForeground,
-                fontFamily: "Inter_400Regular",
-                writingDirection: "rtl",
-              },
-            ]}
-          >
-            تواصل معنا عبر القنوات التالية أو أرسل رسالة مباشرة وسنرد عليك في
-            أقرب وقت.
-          </Text>
-        </View>
-
-        {/* Contact methods */}
-        <View style={styles.methodsList}>
-          {methods.map((m) => (
-            <Pressable
-              key={m.key}
-              onPress={() => openMethod(m)}
-              style={({ pressed }) => [
-                styles.methodRow,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderRadius: colors.radius,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.methodIcon,
-                  { backgroundColor: m.color + "1F" },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={m.icon}
-                  size={22}
-                  color={m.color}
-                />
-              </View>
-              <View style={styles.methodText}>
-                <Text
-                  style={[
-                    styles.methodLabel,
-                    {
-                      color: colors.mutedForeground,
-                      fontFamily: "Inter_500Medium",
-                      writingDirection: "rtl",
-                    },
-                  ]}
-                >
-                  {m.labelAr}
-                </Text>
-                <Text
-                  style={[
-                    styles.methodValue,
-                    {
-                      color: colors.foreground,
-                      fontFamily: "Inter_600SemiBold",
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {m.value}
-                </Text>
-              </View>
-              <Feather
-                name="chevron-left"
-                size={20}
-                color={colors.mutedForeground}
-              />
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Office hours */}
-        <Card>
-          <View style={styles.hoursHeader}>
-            <Feather name="clock" size={16} color={colors.accent} />
+          <View style={styles.onlineRow}>
             <Text
-              style={[
-                styles.hoursTitle,
-                {
-                  color: colors.foreground,
-                  fontFamily: "Inter_700Bold",
-                  writingDirection: "rtl",
-                },
-              ]}
+              style={[styles.statusText, { color: colors.mutedForeground }]}
             >
-              ساعات العمل
+              {isAgentTyping
+                ? "جاري الكتابة..."
+                : isAgentOnline
+                  ? "متصل الآن"
+                  : "غير متصل"}
             </Text>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: isAgentOnline ? "#4ADE80" : "#94A3B8" },
+              ]}
+            />
           </View>
-          <View style={styles.hoursList}>
-            {[
-              { day: "السبت - الخميس", hours: "11:00 ص - 11:00 م" },
-              { day: "الجمعة", hours: "مغلق" },
-            ].map((h) => (
-              <View key={h.day} style={styles.hoursRow}>
-                <Text
-                  style={[
-                    styles.hoursDay,
-                    {
-                      color: colors.foreground,
-                      fontFamily: "Inter_500Medium",
-                    },
-                  ]}
-                >
-                  {h.day}
-                </Text>
-                <Text
-                  style={[
-                    styles.hoursValue,
-                    {
-                      color: colors.mutedForeground,
-                      fontFamily: "Inter_400Regular",
-                    },
-                  ]}
-                >
-                  {h.hours}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </Card>
+        </View>
+      </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <Text
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        // offset 90 لدفع الصندوق فوق شريط الأزرار السفلي (الرئيسية، الدردشة، إلخ)
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 85}
+      >
+        <FlatList
+          data={[...messages].reverse()}
+          inverted
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+          renderItem={({ item }) => <ChatBubble message={item} />}
+          ListFooterComponent={isAgentTyping ? <TypingIndicator /> : null}
+        />
+
+        {/* صندوق الكتابة المرفوع */}
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              paddingBottom: insets.bottom + 12,
+              backgroundColor: colors.background,
+              borderTopColor: colors.border,
+            },
+          ]}
+        >
+          <TextInput
             style={[
-              styles.formTitle,
+              styles.input,
               {
+                backgroundColor: colors.card,
                 color: colors.foreground,
-                fontFamily: "Inter_700Bold",
-                writingDirection: "rtl",
+                borderColor: colors.border,
               },
             ]}
-          >
-            أرسل لنا رسالة
-          </Text>
-
-          <Field
-            label="الاسم الكامل"
-            value={name}
-            onChange={setName}
-            placeholder="اكتب اسمك هنا"
-          />
-          <Field
-            label="البريد الإلكتروني"
-            value={email}
-            onChange={setEmail}
-            placeholder="example@email.com"
-            keyboardType="email-address"
-          />
-          <Field
-            label="الموضوع"
-            value={subject}
-            onChange={setSubject}
-            placeholder="موضوع الرسالة (اختياري)"
-          />
-          <Field
-            label="الرسالة"
-            value={message}
-            onChange={setMessage}
-            placeholder="اكتب رسالتك هنا..."
+            placeholder="كيف يمكننا مساعدتك؟"
+            placeholderTextColor={colors.mutedForeground}
+            value={input}
+            onChangeText={setInput}
             multiline
           />
-
           <Pressable
-            onPress={onSubmit}
-            style={({ pressed }) => [
-              styles.submitBtn,
+            onPress={sendMessage}
+            disabled={!input.trim()}
+            style={[
+              styles.sendBtn,
               {
-                backgroundColor: colors.primary,
-                borderRadius: colors.radius,
-                opacity: pressed ? 0.85 : 1,
+                backgroundColor: input.trim()
+                  ? colors.primary
+                  : colors.secondary,
               },
             ]}
           >
-            <Feather
-              name="send"
-              size={16}
-              color={colors.primaryForeground}
-            />
-            <Text
-              style={[
-                styles.submitText,
-                {
-                  color: colors.primaryForeground,
-                  fontFamily: "Inter_700Bold",
-                },
-              ]}
-            >
-              إرسال الرسالة
-            </Text>
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="send" size={20} color="#fff" />
+            )}
           </Pressable>
         </View>
-      </ScrollView>
-    </View>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  multiline,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  multiline?: boolean;
-  keyboardType?: "default" | "email-address" | "number-pad";
-}) {
-  const colors = useColors();
-  return (
-    <View style={styles.field}>
-      <Text
-        style={[
-          styles.fieldLabel,
-          {
-            color: colors.mutedForeground,
-            fontFamily: "Inter_500Medium",
-            writingDirection: "rtl",
-          },
-        ]}
-      >
-        {label}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground + "80"}
-        keyboardType={keyboardType ?? "default"}
-        multiline={multiline}
-        textAlign="right"
-        style={[
-          styles.fieldInput,
-          {
-            color: colors.foreground,
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderRadius: colors.radius,
-            fontFamily: "Inter_500Medium",
-            minHeight: multiline ? 110 : 48,
-            textAlignVertical: multiline ? "top" : "center",
-            writingDirection: "rtl",
-          },
-        ]}
-      />
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: {
-    padding: 20,
-    gap: 22,
+  header: {
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
-  intro: { gap: 6 },
-  introTitle: {
-    fontSize: 22,
-    textAlign: "right",
-  },
-  introSub: {
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: "right",
-  },
-  methodsList: { gap: 10 },
-  methodRow: {
+  statusInfo: { alignItems: "center" },
+  headerTitle: { fontSize: 17, fontWeight: "700" },
+  onlineRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    padding: 14,
-    borderWidth: 1,
-    gap: 12,
+    gap: 5,
+    marginTop: 2,
   },
-  methodIcon: {
+  statusText: { fontSize: 11 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  inputContainer: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    textAlign: "right",
+    borderWidth: 1,
+    maxHeight: 100,
+  },
+  sendBtn: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    alignItems: "center",
+    borderRadius: 22,
     justifyContent: "center",
-  },
-  methodText: { flex: 1, gap: 2 },
-  methodLabel: {
-    fontSize: 11,
-    textAlign: "right",
-  },
-  methodValue: {
-    fontSize: 14,
-    textAlign: "right",
-  },
-  hoursHeader: {
-    flexDirection: "row-reverse",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  hoursTitle: {
-    fontSize: 14,
-  },
-  hoursList: { gap: 8 },
-  hoursRow: {
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-  },
-  hoursDay: { fontSize: 13 },
-  hoursValue: { fontSize: 13 },
-  form: { gap: 12 },
-  formTitle: {
-    fontSize: 16,
-    textAlign: "right",
-    marginBottom: 4,
-  },
-  field: { gap: 6 },
-  fieldLabel: {
-    fontSize: 12,
-    textAlign: "right",
-  },
-  fieldInput: {
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-  },
-  submitBtn: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 16,
-    marginTop: 4,
-  },
-  submitText: {
-    fontSize: 15,
   },
 });
