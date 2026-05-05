@@ -13,18 +13,20 @@ jobs:
       - name: 🏗 Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
-
-      - name: 🏗 Setup EAS and Dependencies
+          node-version: 20
+          
+      - name: 📦 Install EAS CLI & Dependencies
         run: |
           npm install -g eas-cli
-          npm install
+          npm install --legacy-peer-deps
 
-      - name: 🚀 Build on EAS (Local mode)
+      - name: 🚀 Build APK Locally
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas build --platform android --profile preview --local --non-interactive --output=app-release.apk
 
-      - name: 📤 Upload APK Artifact
+      - name: 📤 Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: alwaleed-app-binary
           path: app-release.apk
