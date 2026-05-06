@@ -20,7 +20,7 @@ export default function App() {
       "463786966083-u5gra94truce0t3e4l9r18t1kbfhoikq.apps.googleusercontent.com",
     // يمكنك إضافة معرفات الأندرويد والـ iOS هنا إذا قمت بإنشائها لاحقاً
     androidClientId:
-      "463786966083-u5gra94truce0t3e4l9r18t1kbfhoikq.apps.googleusercontent.com",
+      "463786966083-irhs7sfococm842td5tqqi8bss3dp79f.apps.googleusercontent.com",
     iosClientId:
       "463786966083-u5gra94truce0t3e4l9r18t1kbfhoikq.apps.googleusercontent.com",
   });
