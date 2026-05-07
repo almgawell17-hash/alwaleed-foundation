@@ -17,7 +17,7 @@ export default function App() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     // معرف العميل الخاص بالويب (ضروري جداً لعمل Expo Go)
     webClientId:
-      "463786966083-u5gra94truce0t3e4l9r18t1kbfhoikq.apps.googleusercontent.com",
+      "463786966083-cc0tvutusboji8eh79kt2j481jocahvo.apps.googleusercontent.com",
     // يمكنك إضافة معرفات الأندرويد والـ iOS هنا إذا قمت بإنشائها لاحقاً
     androidClientId:
       "463786966083-irhs7sfococm842td5tqqi8bss3dp79f.apps.googleusercontent.com",
