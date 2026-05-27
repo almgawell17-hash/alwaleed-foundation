@@ -1,7 +1,20 @@
 import React from "react";
-import { StyleSheet, Text, View, SafeAreaView } from "react-native";
+import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity, Linking } from "react-native";
 
 export default function App() {
+  
+  // دالة التعامل مع فتح الرابط الخارجي
+  const openProjectLink = async () => {
+    const url = "https://flutter-flow--almgawell17.replit.app/";
+    const supported = await Linking.canOpenURL(url);
+
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      console.log("لا يمكن فتح هذا الرابط: " + url);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.card}>
@@ -10,7 +23,10 @@ export default function App() {
           بوابة تسجيل دخول المتطوعين والمحتاجين والمانحين
         </Text>
         
-        {/* تم حذف زر تسجيل الدخول عبر Google من هنا */}
+        {/* زر الانتقال إلى رابط المشروع */}
+        <TouchableOpacity style={styles.button} onPress={openProjectLink}>
+          <Text style={styles.buttonText}>الانتقال إلى البوابة الرقمية</Text>
+        </TouchableOpacity>
 
         <Text style={styles.footer}>صنع لمساعدة المحتاجين في العالم</Text>
       </View>
@@ -49,6 +65,20 @@ const styles = StyleSheet.create({
     color: "#4a5568",
     textAlign: "center",
     marginBottom: 30,
+  },
+  button: {
+    backgroundColor: "#1a365d",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    width: "100%",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   footer: {
     marginTop: 20,
