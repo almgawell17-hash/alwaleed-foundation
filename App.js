@@ -5,7 +5,7 @@ export default function App() {
   
   // دالة التعامل مع فتح الرابط الخارجي
   const openProjectLink = async () => {
-    const url = "https://flutter-flow--almgawell17.replit.app/";
+    const url = " https://almgawell17-hash.github.io/alwaleed-foundation/";
     const supported = await Linking.canOpenURL(url);
 
     if (supported) {
