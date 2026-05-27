@@ -1,39 +1,7 @@
-import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-} from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
-
-// هذه الخطوة ضرورية لفتح المتصفح وإرجاع المستخدم للتطبيق بعد تسجيل الدخول
-WebBrowser.maybeCompleteAuthSession();
+import React from "react";
+import { StyleSheet, Text, View, SafeAreaView } from "react-native";
 
 export default function App() {
-  // إعداد طلب تسجيل الدخول باستخدام الأكواد التي زودتني بها
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    // معرف العميل الخاص بالويب (ضروري جداً لعمل Expo Go)
-    webClientId:
-      "463786966083-cc0tvutusboji8eh79kt2j481jocahvo.apps.googleusercontent.com",
-    // يمكنك إضافة معرفات الأندرويد والـ iOS هنا إذا قمت بإنشائها لاحقاً
-    androidClientId:
-      "463786966083-irhs7sfococm842td5tqqi8bss3dp79f.apps.googleusercontent.com",
-    iosClientId:
-      "463786966083-u5gra94truce0t3e4l9r18t1kbfhoikq.apps.googleusercontent.com",
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { authentication } = response;
-      console.log("نجح الدخول! رمز التوثيق:", authentication.accessToken);
-      // هنا يمكنك استخدام الـ Token لإرساله إلى Supabase أو جلب بيانات المستخدم
-      alert("تم تسجيل الدخول بنجاح!");
-    }
-  }, [response]);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.card}>
@@ -41,16 +9,8 @@ export default function App() {
         <Text style={styles.subtitle}>
           بوابة تسجيل دخول المتطوعين والمحتاجين والمانحين
         </Text>
-
-        <TouchableOpacity
-          style={[styles.button, !request && { opacity: 0.5 }]}
-          disabled={!request}
-          onPress={() => {
-            promptAsync();
-          }}
-        >
-          <Text style={styles.buttonText}>Continue with Google</Text>
-        </TouchableOpacity>
+        
+        {/* تم حذف زر تسجيل الدخول عبر Google من هنا */}
 
         <Text style={styles.footer}>صنع لمساعدة المحتاجين في العالم</Text>
       </View>
@@ -89,19 +49,6 @@ const styles = StyleSheet.create({
     color: "#4a5568",
     textAlign: "center",
     marginBottom: 30,
-  },
-  button: {
-    backgroundColor: "#4285F4",
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    width: "100%",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
   },
   footer: {
     marginTop: 20,
