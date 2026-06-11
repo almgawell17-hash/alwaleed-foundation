@@ -50,20 +50,20 @@ const contacts: {
     iconName: "mail",
     label: "البريد الإلكتروني",
     value: "contact@alwaleed-humanity.org",
-    action: () => Linking.openURL("mailto:contact@alwaleed-humanity.org"),
+    action: () => Linking.openURL("aabntlal680@gmail.com"),
   },
   {
     iconName: "phone",
     label: "الهاتف",
     value: "+966 11 211 1234",
-    action: () => Linking.openURL("tel:+966112111234"),
+    action: () => Linking.openURL("tel:+966567232680"),
   },
   {
     iconName: "globe",
     label: "الموقع الإلكتروني",
     value: "alwaleed-humanity.org",
     action: () =>
-      WebBrowser.openBrowserAsync("https://alwaleed-humanity.org").catch(
+      WebBrowser.openBrowserAsync("https://alwaleed-foundation.vercel.app").catch(
         () => {},
       ),
   },
