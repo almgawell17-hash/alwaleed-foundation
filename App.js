@@ -5,7 +5,7 @@ export default function App() {
   
   // دالة التعامل مع فتح الرابط الخارجي
   const openProjectLink = async () => {
-    const url = "https://99f52f29-cb9a-44be-8411-6c9e690c12e1-00-1zyjjh4euc7sw.expo.worf.replit.dev/";
+    const url = "https://almgawell17-hash.github.io/alwaleed-foundation/";
     const supported = await Linking.canOpenURL(url);
 
     if (supported) {
