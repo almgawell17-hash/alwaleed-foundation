@@ -59,16 +59,16 @@ export default function AdminScreen() {
     try {
       const { data, error } = await supabase
         .from(CHAT_TABLE)
-        .select("session_id, content, role, created_at")
+        .select("conversation_id, content, role, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const map = new Map();
       data?.forEach((row) => {
-        if (!map.has(row.session_id)) {
-          map.set(row.session_id, {
-            sessionId: row.session_id,
+        if (!map.has(row.conversation_id)) {
+          map.set(row.conversation_id, {
+            sessionId: row.conversation_id,
             lastMessage: row.content,
             lastRole: row.role,
             lastTime: new Date(row.created_at).getTime(),
@@ -119,7 +119,7 @@ export default function AdminScreen() {
       const { data } = await supabase
         .from(CHAT_TABLE)
         .select("*")
-        .eq("session_id", sid)
+        .eq("conversation_id", sid)
         .order("created_at", { ascending: true });
 
       setMessages(data?.map(row => ({
@@ -141,7 +141,7 @@ export default function AdminScreen() {
 
     try {
       const { error } = await supabase.from(CHAT_TABLE).insert({
-        session_id: selectedSession,
+        conversation_id: selectedSession,
         role: "agent",
         content: textToSend,
       });
@@ -293,16 +293,16 @@ export default function AdminScreen() {
     try {
       const { data, error } = await supabase
         .from(CHAT_TABLE)
-        .select("session_id, content, role, created_at")
+        .select("conversation_id, content, role, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const map = new Map();
       data?.forEach((row) => {
-        if (!map.has(row.session_id)) {
-          map.set(row.session_id, {
-            sessionId: row.session_id,
+        if (!map.has(row.conversation_id)) {
+          map.set(row.conversation_id, {
+            sessionId: row.conversation_id,
             lastMessage: row.content,
             lastRole: row.role,
             lastTime: new Date(row.created_at).getTime(),
@@ -353,7 +353,7 @@ export default function AdminScreen() {
       const { data } = await supabase
         .from(CHAT_TABLE)
         .select("*")
-        .eq("session_id", sid)
+        .eq("conversation_id", sid)
         .order("created_at", { ascending: true });
 
       setMessages(data?.map(row => ({
@@ -375,7 +375,7 @@ export default function AdminScreen() {
 
     try {
       const { error } = await supabase.from(CHAT_TABLE).insert({
-        session_id: selectedSession,
+        conversation_id: selectedSession,
         role: "agent",
         content: textToSend,
       });

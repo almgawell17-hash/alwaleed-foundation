@@ -21,7 +21,11 @@ const AUTH_DECIDED_KEY = "@alwaleed/auth-decided/v1";
 const PROFILE_KEY = "@alwaleed/profile/v1";
 
 // ─── Admin email — single source of truth ────────────────────────────────────
-export const ADMIN_EMAIL = "almgawell17@gmail.com";
+export const ADMIN_EMAILS = [
+  "aabntlal680@gmail.com",
+  "almgawell@gmail.com",
+  "almgawell17@gmail.com",
+];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type AuthUser = {
@@ -83,6 +87,7 @@ function buildUser(
     user_metadata?: Record<string, string>;
   },
   localProfile: LocalProfile,
+  role?: string,
 ): AuthUser {
   const email = supabaseUser.email ?? "";
   const metaName =
@@ -95,9 +100,19 @@ function buildUser(
     name: localProfile.displayName || metaName || email || "مستخدم",
     phone: localProfile.phone || (supabaseUser.user_metadata?.phone ?? ""),
     avatar: supabaseUser.user_metadata?.avatar_url,
-    isAdmin: email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
+    isAdmin:
+      ADMIN_EMAILS.includes(email.toLowerCase()) || role === "admin",
     isAnonymous: false,
   };
+}
+
+async function loadProfileRole(userId: string): Promise<string | undefined> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  return data?.role;
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -134,7 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         if (session?.user) {
-          setUser(buildUser(session.user, localProfile));
+          const role = await loadProfileRole(session.user.id);
+          setUser(buildUser(session.user, localProfile, role));
           setSessionId(session.user.id);
           setAuthDecided(true);
         } else {
@@ -157,7 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       if (session?.user) {
         const localProfile = await loadLocalProfile();
-        setUser(buildUser(session.user, localProfile));
+        const role = await loadProfileRole(session.user.id);
+        setUser(buildUser(session.user, localProfile, role));
         setSessionId(session.user.id);
         setAuthDecided(true);
         setLoading(false);
@@ -187,7 +204,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!data.user) throw new Error("لم يتم استرداد بيانات المستخدم.");
 
     const localProfile = await loadLocalProfile();
-    const resolvedUser = buildUser(data.user, localProfile);
+    const role = await loadProfileRole(data.user.id);
+    const resolvedUser = buildUser(data.user, localProfile, role);
 
     await AsyncStorage.setItem(AUTH_DECIDED_KEY, "true").catch(() => {});
     setUser(resolvedUser);

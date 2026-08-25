@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ADMIN_EMAIL, useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { useColors } from "@/hooks/useColors";
 import { useTranslation } from "react-i18next";
 
@@ -41,7 +41,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const resolvedUser = await login(trimEmail, trimPass);
-      if (resolvedUser.isAdmin || resolvedUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      if (resolvedUser.isAdmin) {
         router.replace("/admin");
       } else {
         router.replace("/(tabs)");

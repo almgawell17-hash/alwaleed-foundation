@@ -11,7 +11,7 @@ import React, {
 import { Platform } from "react-native";
 
 import { useAuth } from "@/hooks/useAuth";
-import { CHAT_TABLE, supabase } from "@/lib/supabase";
+import { CHAT_TABLE, MEDIA_BUCKET, supabase } from "@/lib/supabase";
 
 const CHAT_KEY = "@alwaleed/chat/v2";
 
@@ -74,6 +74,20 @@ function getAutoReply(text: string): string {
   return "شكراً لتواصلك. تم استلام رسالتك وسيقوم أحد ممثلي الدعم بالرد عليك في أقرب وقت ممكن.";
 }
 
+async function uploadMedia(media: SendMediaPayload, sessionId: string, messageId: string) {
+  const response = await fetch(media.uri);
+  const body = await response.arrayBuffer();
+  const extension = media.name?.split(".").pop() ?? "bin";
+  const path = `${sessionId}/${messageId}.${extension}`;
+  const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, body, {
+    contentType: response.headers.get("content-type") ?? "application/octet-stream",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 async function scheduleNotification(body: string) {
   if (Platform.OS === "web") return;
   try {
@@ -126,7 +140,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem(chatKey);
         if (cancelled) return;
-        if (raw) {
+        const { data: remoteRows } = await supabase
+          .from(CHAT_TABLE)
+          .select("id, role, content, media_url, media_type, file_name, created_at")
+          .eq("conversation_id", sessionId)
+          .order("created_at", { ascending: true });
+        if (remoteRows?.length) {
+          const remoteMessages = remoteRows.map((row) => ({
+            id: row.id,
+            role: row.role as "user" | "agent",
+            text: row.content ?? "",
+            timestamp: new Date(row.created_at).getTime(),
+            mediaUrl: row.media_url ?? undefined,
+            mediaType: row.media_type as MediaType | undefined,
+            fileName: row.file_name ?? undefined,
+          }));
+          setMessages(remoteMessages);
+          await persist(remoteMessages);
+          setLoaded(true);
+        } else if (raw) {
           const parsed = JSON.parse(raw) as ChatMessage[];
           setMessages(parsed.length > 0 ? parsed : [WELCOME]);
         } else {
@@ -149,7 +181,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               event: "INSERT",
               schema: "public",
               table: CHAT_TABLE,
-              filter: `session_id=eq.${sessionId}`,
+              filter: `conversation_id=eq.${sessionId}`,
             },
             (payload) => {
               const row = payload.new as {
@@ -159,6 +191,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 created_at: string;
                 media_type?: string;
                 file_name?: string;
+                media_url?: string;
               };
               if (localIds.current.has(row.id)) return;
               const msg: ChatMessage = {
@@ -166,6 +199,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 role: row.role as "user" | "agent",
                 text: row.content ?? "",
                 timestamp: new Date(row.created_at).getTime(),
+                mediaUrl: row.media_url,
                 mediaType: row.media_type as MediaType | undefined,
                 fileName: row.file_name,
               };
@@ -220,18 +254,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
 
-      if (trimmed) {
-        supabase
-          .from(CHAT_TABLE)
-          .insert({
-            id: msgId,
-            session_id: sessionId,
-            role: "user",
-            content: trimmed,
-          })
-          .then(({ error }) => {
-            if (error) console.warn("[Chat] insert:", error.message);
-          });
+      try {
+        const mediaUrl = media
+          ? await uploadMedia(media, sessionId, msgId)
+          : undefined;
+        const { error } = await supabase.from(CHAT_TABLE).insert({
+          id: msgId,
+          conversation_id: sessionId,
+          role: "user",
+          content: trimmed || null,
+          media_url: mediaUrl,
+          media_type: media?.type,
+          file_name: media?.name,
+        });
+        if (error) throw error;
+      } catch (error) {
+        console.warn("[Chat] message insert:", error instanceof Error ? error.message : error);
       }
 
       if (trimmed) {
@@ -257,7 +295,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             .from(CHAT_TABLE)
             .insert({
               id: replyId,
-              session_id: sessionId,
+              conversation_id: sessionId,
               role: "agent",
               content: replyText,
             })

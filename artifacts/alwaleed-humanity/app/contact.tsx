@@ -21,13 +21,10 @@ import type { ChatMessage } from "@/hooks/useChat";
 import { useColors } from "@/hooks/useColors";
 import { CHAT_TABLE, supabase } from "@/lib/supabase";
 
-// معرف فريد للمتصفح أو الجلسة (لأن الزائر قد لا يملك حساباً)
-const SESSION_ID = "anon_user_123";
-
 export default function ContactScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { sessionId } = useAuth();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +41,7 @@ export default function ContactScreen() {
       const { data } = await supabase
         .from(CHAT_TABLE)
         .select("*")
-        .eq("session_id", SESSION_ID)
+        .eq("conversation_id", sessionId)
         .order("created_at", { ascending: true });
 
       if (data) {
@@ -60,13 +57,14 @@ export default function ContactScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sessionId]);
 
   // 2. تفعيل نظام التواجد (Presence) لمعرفة حالة الأدمن
   useEffect(() => {
     loadMessages();
 
-    const channel = supabase.channel(`presence:${SESSION_ID}`);
+    if (!sessionId) return;
+    const channel = supabase.channel(`presence:${sessionId}`);
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
@@ -78,7 +76,7 @@ export default function ContactScreen() {
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ role: "user", isTyping: input.length > 0 });
+          await channel.track({ role: "user", isTyping: false });
         }
       });
 
@@ -86,14 +84,14 @@ export default function ContactScreen() {
 
     // استماع للرسائل الجديدة
     const msgSub = supabase
-      .channel("new_messages")
+      .channel(`new_messages:${sessionId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: CHAT_TABLE,
-          filter: `session_id=eq.${SESSION_ID}`,
+          filter: `conversation_id=eq.${sessionId}`,
         },
         (payload) => {
           const row = payload.new as any;
@@ -114,7 +112,7 @@ export default function ContactScreen() {
       channel.unsubscribe();
       msgSub.unsubscribe();
     };
-  }, [input.length]);
+  }, [loadMessages, sessionId]);
 
   // 3. إرسال الرسالة
   const sendMessage = async () => {
@@ -125,7 +123,7 @@ export default function ContactScreen() {
 
     try {
       const { error } = await supabase.from(CHAT_TABLE).insert({
-        session_id: SESSION_ID,
+        conversation_id: sessionId,
         role: "user",
         content: text,
       });
