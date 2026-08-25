@@ -23,12 +23,14 @@ import { ChatBubble, TypingIndicator } from "@/components/ChatBubble";
 import { useAuth } from "@/hooks/useAuth";
 import { useChat, type ChatMessage, type SendMediaPayload } from "@/hooks/useChat";
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 const isWeb = Platform.OS === "web";
 const isIOS = Platform.OS === "ios";
 
 export default function ChatScreen() {
   const colors = useColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user, authDecided, loading: authLoading, signInWithGoogle, skipAuth, unlockAdmin } = useAuth();
   const { messages, isAgentTyping, send, clear } = useChat();
@@ -65,7 +67,7 @@ export default function ChatScreen() {
       if (!isWeb) {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert("إذن مطلوب", "يرجى السماح بالوصول إلى المعرض.");
+          Alert.alert(t("common.permissionRequired", "إذن مطلوب"), t("common.galleryPermission", "يرجى السماح بالوصول إلى المعرض."));
           return;
         }
       }
@@ -85,7 +87,7 @@ export default function ChatScreen() {
         send("", media);
       }
     } catch {
-      Alert.alert("خطأ", "تعذر اختيار الوسائط.");
+      Alert.alert(t("common.error", "خطأ"), t("common.mediaPickError", "تعذر اختيار الوسائط."));
     }
   };
 
@@ -93,31 +95,31 @@ export default function ChatScreen() {
     haptic();
     if (isIOS) {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options: ["إلغاء", "صورة من المعرض", "فيديو"], cancelButtonIndex: 0, title: "إرفاق وسائط" },
+        { options: [t("common.cancel", "إلغاء"), t("common.imageFromGallery", "صورة من المعرض"), t("common.video", "فيديو")], cancelButtonIndex: 0, title: t("common.attachMedia", "إرفاق وسائط") },
         (i) => {
           if (i === 1) pickImage("image");
           else if (i === 2) pickImage("video");
         },
       );
     } else {
-      Alert.alert("إرفاق وسائط", undefined, [
-        { text: "صورة من المعرض", onPress: () => pickImage("image") },
-        { text: "فيديو", onPress: () => pickImage("video") },
-        { text: "إلغاء", style: "cancel" },
+      Alert.alert(t("common.attachMedia", "إرفاق وسائط"), undefined, [
+        { text: t("common.imageFromGallery", "صورة من المعرض"), onPress: () => pickImage("image") },
+        { text: t("common.video", "فيديو"), onPress: () => pickImage("video") },
+        { text: t("common.cancel", "إلغاء"), style: "cancel" },
       ]);
     }
   };
 
   const startRecording = async () => {
     if (isWeb) {
-      Alert.alert("غير متاح", "التسجيل الصوتي غير متاح على المتصفح.");
+      Alert.alert(t("common.unavailable", "غير متاح"), t("common.voiceNotOnWeb", "التسجيل الصوتي غير متاح على المتصفح."));
       return;
     }
     try {
       const { Audio } = await import("expo-av");
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("إذن مطلوب", "يرجى السماح بالوصول إلى الميكروفون.");
+        Alert.alert(t("common.permissionRequired", "إذن مطلوب"), t("common.micPermission", "يرجى السماح بالوصول إلى الميكروفون."));
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -150,7 +152,7 @@ export default function ChatScreen() {
       const uri = rec.getURI();
       if (uri) {
         const status = await rec.getStatusAsync();
-        const durationMs = status.isLoaded ? status.durationMillis ?? 0 : recordDuration * 1000;
+        const durationMs = status.durationMillis ?? recordDuration * 1000;
         haptic();
         send("", { uri, type: "voice", name: `voice-${Date.now()}.m4a`, durationMs });
       }
@@ -183,7 +185,7 @@ export default function ChatScreen() {
       setShowAdminModal(false);
       router.push("/admin");
     } else {
-      setAdminError("رمز الوصول غير صحيح");
+      setAdminError(t("chat.wrongCode", "رمز الوصول غير صحيح"));
     }
   };
 
@@ -220,14 +222,14 @@ export default function ChatScreen() {
                   { color: colors.foreground, fontFamily: "Inter_700Bold" },
                 ]}
               >
-                دخول الإدارة
+                {t("chat.adminEntry", "دخول الإدارة")}
               </Text>
             </View>
 
             <TextInput
               value={adminCode}
               onChangeText={(v) => { setAdminCode(v); setAdminError(""); }}
-              placeholder="أدخل رمز الوصول..."
+              placeholder={t("chat.enterCode", "أدخل رمز الوصول...")}
               placeholderTextColor={colors.mutedForeground}
               secureTextEntry
               autoFocus
@@ -264,7 +266,7 @@ export default function ChatScreen() {
                     { color: colors.mutedForeground, fontFamily: "Inter_500Medium" },
                   ]}
                 >
-                  إلغاء
+                  {t("common.cancel", "إلغاء")}
                 </Text>
               </Pressable>
               <Pressable
@@ -277,7 +279,7 @@ export default function ChatScreen() {
                     { color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" },
                   ]}
                 >
-                  دخول
+                  {t("auth.login", "دخول")}
                 </Text>
               </Pressable>
             </View>
@@ -312,7 +314,7 @@ export default function ChatScreen() {
                 { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
               ]}
             >
-              متصل الآن
+              {t("chat.online", "متصل الآن")}
             </Text>
           </View>
           <Text
@@ -321,7 +323,7 @@ export default function ChatScreen() {
               { color: colors.foreground, fontFamily: "Inter_600SemiBold", writingDirection: "rtl" },
             ]}
           >
-            الدعم الفني
+            {t("chat.title", "الدعم الفني")}
           </Text>
         </View>
 
@@ -398,7 +400,7 @@ export default function ChatScreen() {
                     { color: colors.mutedForeground, fontFamily: "Inter_400Regular" },
                   ]}
                 >
-                  جارٍ التسجيل...
+                  {t("chat.recordingVoice", "جارٍ التسجيل...")}
                 </Text>
               </View>
             </View>
@@ -425,7 +427,7 @@ export default function ChatScreen() {
               <TextInput
                 value={input}
                 onChangeText={setInput}
-                placeholder="اكتب رسالتك..."
+                placeholder={t("chat.placeholder", "اكتب رسالتك...")}
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 style={[
