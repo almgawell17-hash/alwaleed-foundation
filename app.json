@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alwaleedfoundationapp.workspace"
@@ -29,6 +31,9 @@
         "projectId": "dff42919-b8e1-4482-976e-447e2a18e51d"
       }
     },
-    "plugins": ["expo-web-browser"]
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "owner": "alwaleed-foundation-app"
   }
 }
