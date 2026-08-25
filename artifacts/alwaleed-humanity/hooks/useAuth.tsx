@@ -20,10 +20,10 @@ const ANON_SESSION_KEY = "@alwaleed/session/v2";
 const AUTH_DECIDED_KEY = "@alwaleed/auth-decided/v1";
 const PROFILE_KEY = "@alwaleed/profile/v1";
 
-const ADMIN_SECRET =
-  (process.env.EXPO_PUBLIC_ADMIN_SECRET as string | undefined) ??
-  "alwaleed-admin-2024";
+// ─── Admin email — single source of truth ────────────────────────────────────
+export const ADMIN_EMAIL = "almgawell17@gmail.com";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
 export type AuthUser = {
   id: string;
   email: string;
@@ -38,18 +38,26 @@ type LocalProfile = { displayName: string; phone: string };
 
 type AuthContextValue = {
   user: AuthUser | null;
+  isAdmin: boolean;
   sessionId: string;
   loading: boolean;
   authDecided: boolean;
+  // Email/password login — returns the resolved AuthUser
+  login: (email: string, password: string) => Promise<AuthUser>;
+  // Alias for signOut
+  logout: () => Promise<void>;
+  // Google OAuth
   signInWithGoogle: () => Promise<void>;
   skipAuth: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (name: string, phone: string) => Promise<void>;
-  unlockAdmin: (secret: string) => boolean;
+  // Admin unlock via secret code (long-press flow)
+  unlockAdmin: (code: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeAnonId() {
   return "anon_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -75,30 +83,29 @@ function buildUser(
     user_metadata?: Record<string, string>;
   },
   localProfile: LocalProfile,
-  isAdmin: boolean,
 ): AuthUser {
+  const email = supabaseUser.email ?? "";
   const metaName =
     supabaseUser.user_metadata?.full_name ??
     supabaseUser.user_metadata?.name ??
     "";
-  const metaPhone = supabaseUser.user_metadata?.phone ?? "";
   return {
     id: supabaseUser.id,
-    email: supabaseUser.email ?? "",
-    name: localProfile.displayName || metaName || (supabaseUser.email ?? "مستخدم"),
-    phone: localProfile.phone || metaPhone,
+    email,
+    name: localProfile.displayName || metaName || email || "مستخدم",
+    phone: localProfile.phone || (supabaseUser.user_metadata?.phone ?? ""),
     avatar: supabaseUser.user_metadata?.avatar_url,
-    isAdmin,
+    isAdmin: email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
     isAnonymous: false,
   };
 }
 
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [authDecided, setAuthDecided] = useState(false);
-  const adminUnlockedRef = useRef(false);
 
   const resolveAnonSession = useCallback(async (): Promise<string> => {
     let sid = await AsyncStorage.getItem(ANON_SESSION_KEY).catch(() => null);
@@ -109,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return sid;
   }, []);
 
+  // ── Bootstrap on mount ──
   useEffect(() => {
     let cancelled = false;
 
@@ -126,8 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         if (session?.user) {
-          const isAdmin = adminUnlockedRef.current;
-          setUser(buildUser(session.user, localProfile, isAdmin));
+          setUser(buildUser(session.user, localProfile));
           setSessionId(session.user.id);
           setAuthDecided(true);
         } else {
@@ -143,20 +150,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
+    // Listen for auth state changes (e.g. after email/password login)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (cancelled) return;
       if (session?.user) {
         const localProfile = await loadLocalProfile();
-        const isAdmin = adminUnlockedRef.current;
-        setUser(buildUser(session.user, localProfile, isAdmin));
+        setUser(buildUser(session.user, localProfile));
         setSessionId(session.user.id);
         setAuthDecided(true);
+        setLoading(false);
       } else {
         setUser(null);
         const sid = await resolveAnonSession();
-        if (!cancelled) setSessionId(sid);
+        if (!cancelled) {
+          setSessionId(sid);
+          setLoading(false);
+        }
       }
     });
 
@@ -166,13 +177,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [resolveAnonSession]);
 
+  // ── Email / Password login ─────────────────────────────────────────────────
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error) throw error;
+    if (!data.user) throw new Error("لم يتم استرداد بيانات المستخدم.");
+
+    const localProfile = await loadLocalProfile();
+    const resolvedUser = buildUser(data.user, localProfile);
+
+    await AsyncStorage.setItem(AUTH_DECIDED_KEY, "true").catch(() => {});
+    setUser(resolvedUser);
+    setSessionId(data.user.id);
+    setAuthDecided(true);
+
+    return resolvedUser;
+  }, []);
+
+  // ── Google OAuth ──────────────────────────────────────────────────────────
   const signInWithGoogle = useCallback(async () => {
     if (Platform.OS === "web") {
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo:
-            typeof window !== "undefined" ? window.location.origin : undefined,
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
       return;
@@ -207,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthDecided(true);
   }, []);
 
+  // ── Skip / Sign out ───────────────────────────────────────────────────────
   const skipAuth = useCallback(async () => {
     await AsyncStorage.setItem(AUTH_DECIDED_KEY, "true").catch(() => {});
     setAuthDecided(true);
@@ -219,49 +251,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const updateProfile = useCallback(
-    async (name: string, phone: string) => {
-      const trimName = name.trim();
-      const trimPhone = phone.trim();
-      const localProfile: LocalProfile = {
-        displayName: trimName,
-        phone: trimPhone,
+  const logout = signOut;
+
+  // ── Admin unlock via secret code ──────────────────────────────────────────
+  const unlockAdmin = useCallback((code: string): boolean => {
+    const secret = process.env.EXPO_PUBLIC_ADMIN_SECRET ?? "";
+    if (!secret || code.trim() !== secret.trim()) return false;
+    setUser((prev) => {
+      if (prev) return { ...prev, isAdmin: true };
+      return {
+        id: sessionId,
+        email: "",
+        name: "Admin",
+        phone: "",
+        isAdmin: true,
+        isAnonymous: true,
       };
-      await saveLocalProfile(localProfile);
+    });
+    return true;
+  }, [sessionId]);
 
-      setUser((u) => {
-        if (!u) return u;
-        return { ...u, name: trimName || u.name, phone: trimPhone };
-      });
+  // ── Update profile ────────────────────────────────────────────────────────
+  const updateProfile = useCallback(async (name: string, phone: string) => {
+    const trimName = name.trim();
+    const trimPhone = phone.trim();
+    const localProfile: LocalProfile = { displayName: trimName, phone: trimPhone };
+    await saveLocalProfile(localProfile);
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await supabase.auth.updateUser({
-            data: { full_name: trimName, phone: trimPhone },
-          });
-        }
-      } catch {}
-    },
-    [],
-  );
+    setUser((u) => {
+      if (!u) return u;
+      return { ...u, name: trimName || u.name, phone: trimPhone };
+    });
 
-  const unlockAdmin = useCallback((secret: string): boolean => {
-    if (secret.trim() === ADMIN_SECRET) {
-      adminUnlockedRef.current = true;
-      setUser((u) => (u ? { ...u, isAdmin: true } : u));
-      return true;
-    }
-    return false;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase.auth.updateUser({ data: { full_name: trimName, phone: trimPhone } });
+      }
+    } catch {}
   }, []);
+
+  const isAdmin = user?.isAdmin === true;
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        isAdmin,
         sessionId,
         loading,
         authDecided,
+        login,
+        logout,
         signInWithGoogle,
         skipAuth,
         signOut,
