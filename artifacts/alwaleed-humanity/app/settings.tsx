@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { Card } from "@/components/Card";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,7 +42,8 @@ const DEFAULTS: SettingsState = {
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, sessionId, signOut } = useAuth();
+  const { t } = useTranslation();
+  const { user, isAdmin, signOut } = useAuth();
   const [state, setState] = useState<SettingsState>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
 
@@ -72,12 +74,12 @@ export default function SettingsScreen() {
 
   const clearCache = () => {
     Alert.alert(
-      "مسح الذاكرة المؤقتة",
-      "سيؤدي هذا إلى حذف البيانات المحفوظة محلياً (لن يؤثر على حسابك). هل أنت متأكد؟",
+      t("settings.clearCache"),
+      t("settings.clearCacheMsg"),
       [
-        { text: "إلغاء", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "مسح",
+          text: t("settings.clearBtn"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -86,9 +88,9 @@ export default function SettingsScreen() {
                 (k) => k.startsWith("@alwaleed/") && k !== STORAGE_KEY,
               );
               await AsyncStorage.multiRemove(toRemove);
-              Alert.alert("تم", "تم مسح الذاكرة المؤقتة بنجاح.");
+              Alert.alert(t("settings.clearSuccess"), t("settings.clearSuccessMsg"));
             } catch {
-              Alert.alert("خطأ", "حدث خطأ أثناء مسح الذاكرة المؤقتة.");
+              Alert.alert(t("common.error"), t("settings.clearCache"));
             }
           },
         },
@@ -98,10 +100,10 @@ export default function SettingsScreen() {
 
   const handleSignOut = () => {
     if (!user) return;
-    Alert.alert("تسجيل الخروج", "هل تريد تسجيل الخروج؟", [
-      { text: "إلغاء", style: "cancel" },
+    Alert.alert(t("settings.signOutTitle"), t("settings.signOutMsg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "خروج",
+        text: t("settings.signOutBtn"),
         style: "destructive",
         onPress: async () => {
           await signOut();
@@ -110,8 +112,8 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const displayName = user?.name || "مستخدم مجهول";
-  const displayEmail = user?.email || "بدون تسجيل";
+  const displayName = user?.name || t("settings.guestUser");
+  const displayEmail = user?.email || t("settings.noEmail");
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0] ?? "")
@@ -200,11 +202,11 @@ export default function SettingsScreen() {
           </Card>
         </Pressable>
 
-        <Section title="الإشعارات">
+        <Section title={t("settings.notifications")}>
           <SettingRow
             icon="bell-outline"
-            label="الإشعارات الفورية"
-            sub="تلقي إشعارات الحملات الجديدة والتحديثات"
+            label={t("settings.pushNotifications")}
+            sub={t("settings.pushNotificationsSub")}
             control={
               <Switch
                 value={state.notificationsPush}
@@ -217,8 +219,8 @@ export default function SettingsScreen() {
           <Divider />
           <SettingRow
             icon="email-outline"
-            label="إشعارات البريد"
-            sub="تلقي ملخصات أسبوعية عبر البريد الإلكتروني"
+            label={t("settings.emailNotifications")}
+            sub={t("settings.emailNotificationsSub")}
             control={
               <Switch
                 value={state.notificationsEmail}
@@ -230,11 +232,11 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        <Section title="التجربة">
+        <Section title={t("settings.sectionExperience")}>
           <SettingRow
             icon="volume-high"
-            label="المؤثرات الصوتية"
-            sub="تشغيل أصوات التفاعل"
+            label={t("settings.sound")}
+            sub={t("settings.soundEffectsSub")}
             control={
               <Switch
                 value={state.soundEffects}
@@ -247,8 +249,8 @@ export default function SettingsScreen() {
           <Divider />
           <SettingRow
             icon="vibrate"
-            label="الاهتزاز"
-            sub="تفعيل الاهتزاز عند التفاعل"
+            label={t("settings.haptics")}
+            sub={t("settings.hapticsSub")}
             control={
               <Switch
                 value={state.haptics}
@@ -261,8 +263,8 @@ export default function SettingsScreen() {
           <Divider />
           <SettingRow
             icon="cloud-download-outline"
-            label="موفر البيانات"
-            sub="تقليل استهلاك الإنترنت قدر الإمكان"
+            label={t("settings.dataSaver")}
+            sub={t("settings.dataSaverSub")}
             control={
               <Switch
                 value={state.dataSaver}
@@ -274,7 +276,7 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        <Section title="المظهر">
+        <Section title={t("settings.sectionAppearance")}>
           <View style={styles.themeRow}>
             <View
               style={[
@@ -297,7 +299,7 @@ export default function SettingsScreen() {
                   { color: colors.primary, fontFamily: "Inter_700Bold" },
                 ]}
               >
-                داكن
+                {t("settings.darkMode")}
               </Text>
             </View>
             <Text
@@ -310,12 +312,12 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              تم تحسين التطبيق للوضع الداكن لراحة العين.
+              {t("settings.darkModeSub")}
             </Text>
           </View>
         </Section>
 
-        <Section title="البيانات والتخزين">
+        <Section title={t("settings.sectionData")}>
           <Pressable
             onPress={clearCache}
             style={({ pressed }) => [styles.actionRow, { opacity: pressed ? 0.7 : 1 }]}
@@ -340,7 +342,7 @@ export default function SettingsScreen() {
                   },
                 ]}
               >
-                مسح الذاكرة المؤقتة
+                {t("settings.clearCache")}
               </Text>
               <Text
                 style={[
@@ -352,12 +354,51 @@ export default function SettingsScreen() {
                   },
                 ]}
               >
-                حذف البيانات المحفوظة لتحرير المساحة
+                {t("settings.clearCacheSub")}
               </Text>
             </View>
             <Feather name="chevron-left" size={18} color={colors.mutedForeground} />
           </Pressable>
         </Section>
+
+        <Pressable
+          onPress={() => router.push(isAdmin ? "/admin" : "/login")}
+          style={({ pressed }) => [
+            styles.adminLoginBtn,
+            {
+              backgroundColor: colors.primary + "14",
+              borderColor: colors.primary + "55",
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: colors.primary + "22" }]}>
+            <Feather name={isAdmin ? "shield" : "log-in"} size={20} color={colors.primary} />
+          </View>
+          <View style={styles.rowText}>
+            <Text
+              style={[
+                styles.rowLabel,
+                { color: colors.primary, fontFamily: "Inter_600SemiBold", writingDirection: "rtl" },
+              ]}
+            >
+              {isAdmin
+                ? t("settings.adminPanel", "لوحة الإدارة")
+                : t("settings.adminLogin", "تسجيل دخول المشرف")}
+            </Text>
+            <Text
+              style={[
+                styles.rowSub,
+                { color: colors.mutedForeground, fontFamily: "Inter_400Regular", writingDirection: "rtl" },
+              ]}
+            >
+              {isAdmin
+                ? t("settings.adminSessionActive", "جلسة المشرف مفعّلة")
+                : t("settings.adminLoginSub", "الدخول بالبريد الإلكتروني وكلمة المرور")}
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={18} color={colors.mutedForeground} />
+        </Pressable>
 
         {user && (
           <Pressable
@@ -378,7 +419,7 @@ export default function SettingsScreen() {
                 { color: colors.destructive, fontFamily: "Inter_600SemiBold" },
               ]}
             >
-              تسجيل الخروج
+              {t("settings.logout")}
             </Text>
           </Pressable>
         )}
@@ -391,7 +432,7 @@ export default function SettingsScreen() {
               fontSize: 12,
             }}
           >
-            الإصدار 1.0.0
+            {t("settings.version")} 1.0.0
           </Text>
           <Text
             style={{
@@ -400,7 +441,7 @@ export default function SettingsScreen() {
               fontSize: 11,
             }}
           >
-            © 2026 مؤسسة الوليد للإنسانية
+            © 2026 AlWaleed for Humanity
           </Text>
         </Card>
       </ScrollView>
@@ -548,4 +589,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   signOutText: { fontSize: 16 },
+  adminLoginBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
 });
