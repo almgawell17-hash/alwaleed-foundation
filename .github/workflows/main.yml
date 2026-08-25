@@ -22,7 +22,7 @@ jobs:
 
       - name: 🚀 Build APK Locally
         env:
-          EXPO_TOKEN: ${{ secrets. ACCESS_TOKEN }}
+          EXPO_TOKEN: ${{ secrets. EXPO_TOKEN }}
         run: eas build --platform android --profile preview --local --non-interactive --output=app-release.apk
 
       - name: 📤 Upload APK
