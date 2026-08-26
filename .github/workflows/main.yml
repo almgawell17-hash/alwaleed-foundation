@@ -1,32 +1,27 @@
-name: Build Android Preview
-
+name: Build Android APK
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 🏗 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🏗 Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
-          
-      - name: 📦 Install EAS CLI & Dependencies
+          node-version: 20
+
+      - name: Setup EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build APK on EAS Cloud
         run: |
-          npm install -g eas-cli
-          npm install --legacy-peer-deps
-
-      - name: 🚀 Build APK Locally
+          eas build --platform android --profile preview --non-interactive
         env:
-          EXPO_TOKEN: ${{ secrets. EXPO_TOKEN }}
-        run: eas build --platform android --profile preview --local --non-interactive --output=app-release.apk
-
-      - name: 📤 Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: alwaleed-app-binary
-          path: app-release.apk
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_DOCTOR_SKIP_CHECKS: "true"
+          EAS_SKIP_AUTO_FINGERPRINT: "1"
