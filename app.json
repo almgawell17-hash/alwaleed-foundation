@@ -1,40 +1,43 @@
 {
   "expo": {
-    "name": "مؤسسة الوليد للإنسانية",
-    "slug": "alwaleed-foundation-app",
-    "scheme": "alwaleed-app",
+    "name": "AlWaleed for Humanity",
+    "slug": "alwaleed-humanity",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
+    "scheme": "alwaleed-humanity",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A1014"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.alwaleedfoundationapp.workspace"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.alwaleedfoundationapp.workspace"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "dff42919-b8e1-4482-976e-447e2a18e51d"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0A1014"
       }
     },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
     "plugins": [
-      "expo-web-browser",
-      "expo-router"
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
-    "owner": "alwaleed-foundation-app"
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
   }
 }

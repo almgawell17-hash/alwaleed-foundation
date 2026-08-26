@@ -68,13 +68,8 @@ catalog:
 
 autoInstallPeers: false
 
-onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
-  - msw
-  - unrs-resolver
-
 overrides:
+  expo-constants: "18.0.14"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
@@ -163,3 +158,6 @@ overrides:
   # uuid@14 is ESM-only and breaks Metro bundler; scoped overrides for direct parents only
   "@expo/ngrok>uuid": "^9.0.0"
   "xcode>uuid": "^9.0.0"
+
+allowBuilds:
+  esbuild: true

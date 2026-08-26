@@ -299,7 +299,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
               role: "agent",
               content: replyText,
             })
-            .catch(() => {});
+            .then(() => {}, () => {});
         }, delay);
       }
     },
