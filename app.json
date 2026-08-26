@@ -32,7 +32,8 @@
       }
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-router"
     ],
     "owner": "alwaleed-foundation-app"
   }
