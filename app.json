@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Alwaleed Philanthropies",
+    "name": "مؤسسة الوليد للإنسانية",
     "slug": "alwaleed-foundation-app",
-    "scheme": "workspace",
+    "scheme": "alwaleed-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

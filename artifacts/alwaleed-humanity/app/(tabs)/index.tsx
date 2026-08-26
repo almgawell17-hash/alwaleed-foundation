@@ -184,7 +184,7 @@ export default function HomeScreen() {
                   },
                 ]}
               >
-                السلام عليكم
+               مرحبا
               </Text>
               <Text
                 style={[
